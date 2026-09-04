@@ -1,0 +1,18 @@
+diff --git a/utils/inotify-tools/patches/010-fix-fsnotify-symlink-install.patch b/utils/inotify-tools/patches/010-fix-fsnotify-symlink-install.patch
+new file mode 100644
+index 0000000..0df9eca
+--- /dev/null
++++ b/utils/inotify-tools/patches/010-fix-fsnotify-symlink-install.patch
+@@ -0,0 +1,12 @@
++--- a/src/Makefile.am
+++++ b/src/Makefile.am
++@@ -22,8 +22,8 @@
++ install-exec-hook:
++ 	cd $(DESTDIR)$(bindir) && \
++-	$(LN_S) inotifywait fsnotifywait && \
++-	$(LN_S) inotifywatch fsnotifywatch
+++	$(LN_S) -f inotifywait fsnotifywait && \
+++	$(LN_S) -f inotifywatch fsnotifywatch
++ 
++ uninstall-hook:
++ 	rm -f $(DESTDIR)$(bindir)/{fsnotifywait,fsnotifywatch}
