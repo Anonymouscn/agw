@@ -180,11 +180,9 @@ define KernelPackage/itco-wdt
   DEPENDS:=@TARGET_x86
   KCONFIG:=\
 	CONFIG_ITCO_WDT \
-	CONFIG_ITCO_VENDOR_SUPPORT=y \
 	CONFIG_WATCHDOG_CORE=y
-  FILES:=$(LINUX_DIR)/drivers/watchdog/iTCO_wdt.ko \
-         $(LINUX_DIR)/drivers/watchdog/iTCO_vendor_support.ko
-  AUTOLOAD:=$(call AutoLoad,50,iTCO_vendor_support iTCO_wdt,1)
+  FILES:=$(LINUX_DIR)/drivers/watchdog/iTCO_wdt.ko
+  AUTOLOAD:=$(call AutoLoad,50,iTCO_wdt,1)
 endef
 
 define KernelPackage/itco-wdt/description
