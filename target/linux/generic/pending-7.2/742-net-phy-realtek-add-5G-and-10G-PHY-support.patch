@@ -64,7 +64,7 @@ Signed-off-by: Balázs Triszka <info@balika011.hu>
  #include <linux/string_choices.h>
  #include <net/phy/realtek_phy.h>
  
-@@ -217,10 +219,27 @@
+@@ -256,10 +258,27 @@
  #define RTL_8221B_VM_CG				0x001cc84a
  #define RTL_8251B				0x001cc862
  #define RTL_8261C				0x001cc890
@@ -92,7 +92,7 @@ Signed-off-by: Balázs Triszka <info@balika011.hu>
  MODULE_DESCRIPTION("Realtek PHY driver");
  MODULE_AUTHOR("Johnson Leung");
  MODULE_LICENSE("GPL");
-@@ -2151,6 +2170,125 @@ static int rtl8251b_c45_match_phy_device
+@@ -2540,6 +2559,125 @@ static int rtl8251b_c45_match_phy_device
  	return rtlgen_is_c45_match(phydev, RTL_8251B, true);
  }
  
@@ -218,7 +218,7 @@ Signed-off-by: Balázs Triszka <info@balika011.hu>
  static int rtlgen_resume(struct phy_device *phydev)
  {
  	int ret = genphy_resume(phydev);
-@@ -2372,6 +2510,482 @@ static int rtlgen_sfp_config_aneg(struct
+@@ -2761,6 +2899,482 @@ static int rtlgen_sfp_config_aneg(struct
  	return 0;
  }
  
@@ -701,7 +701,7 @@ Signed-off-by: Balázs Triszka <info@balika011.hu>
  static struct phy_driver realtek_drvs[] = {
  	{
  		PHY_ID_MATCH_EXACT(0x00008201),
-@@ -2686,6 +3300,108 @@ static struct phy_driver realtek_drvs[]
+@@ -3083,6 +3697,108 @@ static struct phy_driver realtek_drvs[]
  		.resume		= genphy_resume,
  		.read_mmd	= genphy_read_mmd_unsupported,
  		.write_mmd	= genphy_write_mmd_unsupported,
@@ -812,11 +812,10 @@ Signed-off-by: Balázs Triszka <info@balika011.hu>
  
 --- a/drivers/net/phy/realtek/Kconfig
 +++ b/drivers/net/phy/realtek/Kconfig
-@@ -1,7 +1,8 @@
- # SPDX-License-Identifier: GPL-2.0-only
+@@ -2,6 +2,7 @@
  config REALTEK_PHY
-	tristate "Realtek PHYs"
-	select PHY_PACKAGE
+ 	tristate "Realtek PHYs"
+ 	select PHY_PACKAGE
 +	select PHY_COMMON_PROPS
  	help
  	  Currently supports RTL821x/RTL822x and fast ethernet PHYs

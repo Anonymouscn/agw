@@ -14,7 +14,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
 
 --- a/include/linux/if_bridge.h
 +++ b/include/linux/if_bridge.h
-@@ -61,6 +61,7 @@ enum bridge_flags_bit {
+@@ -62,6 +62,7 @@ enum bridge_flags_bit {
  	BR_PORT_MAB_BIT,
  	BR_NEIGH_VLAN_SUPPRESS_BIT,
  	BR_NEIGH_FORWARD_GRAT_BIT,
@@ -42,7 +42,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  	struct net_bridge_port *p;
 @@ -220,6 +221,10 @@ void br_flood(struct net_bridge *br, str
  		case BR_PKT_MULTICAST:
- 			if (!(p->flags & BR_MCAST_FLOOD) && skb->dev != br->dev)
+ 			if (!test_bit(BR_MCAST_FLOOD_BIT, &p->flags) && skb->dev != br->dev)
  				continue;
 +			if ((p->flags & BR_BPDU_FILTER) &&
 +			    unlikely(is_link_local_ether_addr(dest) &&
@@ -50,7 +50,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
 +				continue;
  			break;
  		case BR_PKT_BROADCAST:
- 			if (!(p->flags & BR_BCAST_FLOOD) && skb->dev != br->dev)
+ 			if (!test_bit(BR_BCAST_FLOOD_BIT, &p->flags) && skb->dev != br->dev)
 --- a/net/bridge/br_input.c
 +++ b/net/bridge/br_input.c
 @@ -384,6 +384,8 @@ static rx_handler_result_t br_handle_fra
@@ -64,7 +64,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  			if (p->br->stp_enabled == BR_NO_STP ||
 --- a/net/bridge/br_sysfs_if.c
 +++ b/net/bridge/br_sysfs_if.c
-@@ -263,6 +263,7 @@ BRPORT_ATTR_FLAG(multicast_flood, BR_MCA
+@@ -262,6 +262,7 @@ BRPORT_ATTR_FLAG(multicast_flood, BR_MCA
  BRPORT_ATTR_FLAG(broadcast_flood, BR_BCAST_FLOOD_BIT);
  BRPORT_ATTR_FLAG(neigh_suppress, BR_NEIGH_SUPPRESS_BIT);
  BRPORT_ATTR_FLAG(isolated, BR_ISOLATED_BIT);
@@ -72,7 +72,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  
  #ifdef CONFIG_BRIDGE_IGMP_SNOOPING
  static ssize_t show_multicast_router(struct net_bridge_port *p, char *buf)
-@@ -315,6 +316,7 @@ static const struct brport_attribute *br
+@@ -314,6 +315,7 @@ static const struct brport_attribute *br
  	&brport_attr_group_fwd_mask,
  	&brport_attr_neigh_suppress,
  	&brport_attr_isolated,
@@ -114,7 +114,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  
 --- a/include/uapi/linux/if_link.h
 +++ b/include/uapi/linux/if_link.h
-@@ -1151,6 +1151,7 @@ enum {
+@@ -1154,6 +1154,7 @@ enum {
  	IFLA_BRPORT_NEIGH_VLAN_SUPPRESS,
  	IFLA_BRPORT_BACKUP_NHID,
  	IFLA_BRPORT_NEIGH_FORWARD_GRAT,
@@ -124,7 +124,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  #define IFLA_BRPORT_MAX (__IFLA_BRPORT_MAX - 1)
 --- a/net/bridge/br_netlink.c
 +++ b/net/bridge/br_netlink.c
-@@ -194,6 +194,7 @@ static inline size_t br_port_info_size(v
+@@ -191,6 +191,7 @@ static inline size_t br_port_info_size(v
  		+ nla_total_size(1)	/* IFLA_BRPORT_MAB */
  		+ nla_total_size(1)	/* IFLA_BRPORT_NEIGH_VLAN_SUPPRESS */
  		+ nla_total_size(1)	/* IFLA_BRPORT_NEIGH_FORWARD_GRAT */
@@ -132,7 +132,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  		+ nla_total_size(sizeof(struct ifla_bridge_id))	/* IFLA_BRPORT_ROOT_ID */
  		+ nla_total_size(sizeof(struct ifla_bridge_id))	/* IFLA_BRPORT_BRIDGE_ID */
  		+ nla_total_size(sizeof(u16))	/* IFLA_BRPORT_DESIGNATED_PORT */
-@@ -287,7 +288,9 @@ static int br_port_fill_attrs(struct sk_
+@@ -288,7 +289,9 @@ static int br_port_fill_attrs(struct sk_
  	    nla_put_u8(skb, IFLA_BRPORT_NEIGH_VLAN_SUPPRESS,
  		       !!(flags & BR_NEIGH_VLAN_SUPPRESS)) ||
  	    nla_put_u8(skb, IFLA_BRPORT_NEIGH_FORWARD_GRAT,
@@ -143,7 +143,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  		return -EMSGSIZE;
  
  	timerval = br_timer_value(&p->message_age_timer);
-@@ -913,6 +916,7 @@ static const struct nla_policy br_port_p
+@@ -909,6 +912,7 @@ static const struct nla_policy br_port_p
  	[IFLA_BRPORT_NEIGH_VLAN_SUPPRESS] = NLA_POLICY_MAX(NLA_U8, 1),
  	[IFLA_BRPORT_BACKUP_NHID] = { .type = NLA_U32 },
  	[IFLA_BRPORT_NEIGH_FORWARD_GRAT] = NLA_POLICY_MAX(NLA_U8, 1),
@@ -151,8 +151,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  };
  
  /* Change the state of the port and notify spanning tree */
-@@ -982,6 +986,7 @@ static int br_setport(struct net_bridge_
- 	br_set_port_flag(&set, &clear, tb, IFLA_BRPORT_NEIGH_VLAN_SUPPRESS,
+@@ -986,6 +990,7 @@ static int br_setport(struct net_bridge_
  			 BR_NEIGH_VLAN_SUPPRESS);
  	br_set_port_flag(&set, &clear, tb, IFLA_BRPORT_NEIGH_FORWARD_GRAT,
  			 BR_NEIGH_FORWARD_GRAT);
@@ -171,7 +170,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  
  struct rtnl_link {
  	rtnl_doit_func		doit;
-@@ -5340,7 +5340,9 @@ int ndo_dflt_bridge_getlink(struct sk_bu
+@@ -5419,7 +5419,9 @@ int ndo_dflt_bridge_getlink(struct sk_bu
  	    brport_nla_put_flag(skb, flags, mask,
  				IFLA_BRPORT_MCAST_FLOOD, BR_MCAST_FLOOD) ||
  	    brport_nla_put_flag(skb, flags, mask,

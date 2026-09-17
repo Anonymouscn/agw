@@ -41,7 +41,7 @@ Subject: [PATCH] mtd: mtdsplit support
  	depends on m
 --- a/drivers/mtd/Makefile
 +++ b/drivers/mtd/Makefile
-@@ -9,6 +9,8 @@ mtd-y				:= mtdcore.o mtdsuper.o mtdconc
+@@ -10,6 +10,8 @@ mtd-$(CONFIG_MTD_VIRT_CONCAT)	+= mtd_vir
  
  obj-y				+= parsers/
  
@@ -67,7 +67,7 @@ Subject: [PATCH] mtd: mtdsplit support
  
  /*
   * MTD methods which simply translate the effective address and pass through
-@@ -242,6 +244,147 @@ static int mtd_add_partition_attrs(struc
+@@ -246,6 +248,147 @@ static int mtd_add_partition_attrs(struc
  	return ret;
  }
  
@@ -215,7 +215,7 @@ Subject: [PATCH] mtd: mtdsplit support
  int mtd_add_partition(struct mtd_info *parent, const char *name,
  		      long long offset, long long length)
  {
-@@ -280,6 +423,7 @@ int mtd_add_partition(struct mtd_info *p
+@@ -289,6 +432,7 @@ int mtd_add_partition(struct mtd_info *p
  	if (ret)
  		goto err_remove_part;
  
@@ -223,7 +223,7 @@ Subject: [PATCH] mtd: mtdsplit support
  	mtd_add_partition_attrs(child);
  
  	return 0;
-@@ -423,6 +567,7 @@ int add_mtd_partitions(struct mtd_info *
+@@ -437,6 +581,7 @@ int add_mtd_partitions(struct mtd_info *
  			goto err_del_partitions;
  		}
  
@@ -231,7 +231,7 @@ Subject: [PATCH] mtd: mtdsplit support
  		mtd_add_partition_attrs(child);
  
  		/* Look for subpartitions (skip if no maching parser found) */
-@@ -446,31 +591,6 @@ err_del_partitions:
+@@ -460,31 +605,6 @@ err_del_partitions:
  	return ret;
  }
  
