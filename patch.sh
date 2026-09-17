@@ -267,27 +267,22 @@ if "TARGET_LDFLAGS += $(INTL_LDFLAGS) -fuse-ld=bfd" not in s:
         a="HOST_CFLAGS += -I$(LINUX_DIR)/tools/include\n"
         if a not in s: raise SystemExit("cannot locate perf linker flag anchor")
         s=s.replace(a, a+"\nTARGET_LDFLAGS += $(INTL_LDFLAGS) -fuse-ld=bfd\n", 1)
-if not re.search(r"(?m)^\s*NO_LIBLLVM=1\s*\\\\$", s):
-    s,n=re.subn(r"(?m)^(\s*NO_LIBPERL=1\s*\\\\\n)", r"\1\tNO_LIBLLVM=1 \\\n", s, count=1)
-    if n != 1: raise SystemExit("cannot locate perf MAKE_FLAGS insertion point")
-if not re.search(r"(?m)^\s*NO_RUST=1\s*\\\\$", s):
-    s,n=re.subn(r"(?m)^(\s*NO_LIBLLVM=1\s*\\\\\n)", r"\1\tNO_RUST=1 \\\n", s, count=1)
-    if n != 1: raise SystemExit("cannot locate perf LLVM flag insertion point")
+# NO_LIBLLVM and NO_RUST are maintained in the Makefile; do not reinsert them here.
 s=re.sub(r"(?m)^\s*NO_LIBZSTD=1\s*\\\\\n", "", s)
 p.write_text(s)
 PY
     after="$(sha256sum "${makefile}" | awk '{print $1}')"
-    git -C "${ROOT}" diff --no-ext-diff -- package/devel/perf/Makefile > "${patch_abs}"
-    if [[ ! -s "${patch_abs}" ]]; then
-        err "Generated perf patch is empty: ${patch_abs}"
-        FAILED=$((FAILED + 1))
-        return 1
-    fi
-    printf '%s perf Makefile synchronized; patch regenerated: %s\n' "$(date -u +%FT%TZ)" "${patch_abs}" >> /tmp/openwrt-patch-changes.log
     if [[ "${before}" == "${after}" ]]; then
-        ok "Already synchronized; refreshed patch: perf"
+        ok "Already synchronized; preserved patch: perf"
         SKIPPED=$((SKIPPED + 1))
     else
+        git -C "${ROOT}" diff --no-ext-diff -- package/devel/perf/Makefile > "${patch_abs}"
+        if [[ ! -s "${patch_abs}" ]]; then
+            err "Generated perf patch is empty: ${patch_abs}"
+            FAILED=$((FAILED + 1))
+            return 1
+        fi
+        printf "%s perf Makefile synchronized; patch regenerated: %s\n" "$(date -u +%FT%TZ)" "${patch_abs}" >> /tmp/openwrt-patch-changes.log
         ok "Synchronized and regenerated patch: perf"
         APPLIED=$((APPLIED + 1))
     fi
