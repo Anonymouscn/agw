@@ -189,9 +189,15 @@ define KernelPackage/libphy
   KCONFIG:=CONFIG_PHYLIB \
 	   CONFIG_PHYLIB_LEDS=y \
 	   CONFIG_MDIO_BUS
+ifeq ($(KERNEL_PATCHVER),7.2)
+  FILES:=$(LINUX_DIR)/drivers/net/phy/libphy.ko \
+    $(LINUX_DIR)/drivers/net/phy/mdio_bus.ko
+  AUTOLOAD:=$(call AutoLoad,15,libphy mdio_bus,1)
+else
   FILES:=$(LINUX_DIR)/drivers/net/phy/libphy.ko \
     $(LINUX_DIR)/drivers/net/phy/mdio-bus.ko@ge6.18
   AUTOLOAD:=$(call AutoLoad,15,libphy mdio-bus@ge6.18,1)
+endif
 endef
 
 define KernelPackage/libphy/description
@@ -564,7 +570,7 @@ define KernelPackage/phy-realtek
    KCONFIG:=CONFIG_REALTEK_PHY \
     CONFIG_REALTEK_PHY_HWMON=y
    DEPENDS:=+kmod-libphy +kmod-hwmon-core
-   FILES:=$(LINUX_DIR)/drivers/net/phy/realtek/realtek.ko
+   FILES:=$(LINUX_DIR)/drivers/net/phy/realtek/realtek.ko $(LINUX_DIR)/drivers/net/phy/phy_package.ko
    AUTOLOAD:=$(call AutoLoad,18,realtek,1)
 endef
 

@@ -1,0 +1,27 @@
+From: Mieczyslaw Nalewaj <namiltd@yahoo.com>
+Date: Sun, 18 Jan 2026 15:24:46 +0100
+Subject: [PATCH] serial: 8250: add UPIO_AU case to set_io_from_upio()
+
+Add UPIO_AU I/O handling for Au1x00 and RT288x while preserving the
+non-CONFIG_HAS_IOPORT fallback already present in Linux 7.2.3.
+
+Signed-off-by: Mieczyslaw Nalewaj <namiltd@yahoo.com>
+---
+ drivers/tty/serial/8250/8250_port.c | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+--- a/drivers/tty/serial/8250/8250_port.c
++++ b/drivers/tty/serial/8250/8250_port.c
+@@ -455,10 +455,13 @@ static void set_io_from_upio(struct uart
+ #ifdef CONFIG_HAS_IOPORT
+ 	case UPIO_PORT:
++	case UPIO_AU:
+ 		p->serial_in = io_serial_in;
+ 		p->serial_out = io_serial_out;
+ 		break;
+ #endif
++#ifndef CONFIG_HAS_IOPORT
+ 	case UPIO_AU:
+ 		break;
++#endif
+ 	default:
