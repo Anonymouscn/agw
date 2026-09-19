@@ -7,7 +7,7 @@ Subject: kernel: complete kallsyms uncompressed generator support
 
 --- a/scripts/kallsyms.c
 +++ b/scripts/kallsyms.c
-@@ -68,7 +68,7 @@
+@@ -68,7 +68,7 @@ static unsigned char best_table_len[256]
  
  static void usage(void)
  {
@@ -16,7 +16,7 @@ Subject: kernel: complete kallsyms uncompressed generator support
  	exit(1);
  }
  
-@@ -391,6 +391,10 @@
+@@ -391,6 +391,10 @@ static void write_src(void)
  		for (k = 0; k < table[i]->len; k++)
  			printf(", 0x%02x", table[i]->sym[k]);
  
@@ -27,7 +27,7 @@ Subject: kernel: complete kallsyms uncompressed generator support
  		/*
  		 * Now that we wrote out the compressed symbol name, restore the
  		 * original name and print it in the comment.
-@@ -689,6 +693,7 @@
+@@ -689,6 +693,7 @@ int main(int argc, char **argv)
  		static const struct option long_options[] = {
  			{"all-symbols",     no_argument, &all_symbols,     1},
  			{"pc-relative",     no_argument, &pc_relative,     1},
