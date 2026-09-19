@@ -25,7 +25,7 @@ Signed-off-by: Steve French <stfrench@microsoft.com>
 
 --- a/fs/smb/server/smb2pdu.c
 +++ b/fs/smb/server/smb2pdu.c
-@@ -9074,6 +9074,39 @@ int smb2_check_sign_req(struct ksmbd_wor
+@@ -9639,6 +9639,39 @@ int smb2_check_sign_req(struct ksmbd_wor
  }
  
  /**
@@ -65,7 +65,7 @@ Signed-off-by: Steve French <stfrench@microsoft.com>
   * smb2_set_sign_rsp() - handler for rsp packet sign processing
   * @work:   smb work containing notify command buffer
   *
-@@ -9083,18 +9116,13 @@ void smb2_set_sign_rsp(struct ksmbd_work
+@@ -9648,18 +9681,13 @@ void smb2_set_sign_rsp(struct ksmbd_work
  	struct smb2_hdr *hdr;
  	char signature[SMB2_HMACSHA256_SIZE];
  	struct kvec *iov;
@@ -86,13 +86,19 @@ Signed-off-by: Steve French <stfrench@microsoft.com>
  
  	ksmbd_sign_smb2_pdu(work->conn, work->sess->sess_key, iov, n_vec,
  			    signature);
-@@ -9743,4 +9771,4 @@ void smb3_set_sign_rsp(struct ksmbd_work
+@@ -9742,7 +9770,7 @@ void smb3_set_sign_rsp(struct ksmbd_work
+ 	char signature[SMB2_CMACAES_SIZE];
  	struct kvec *iov;
  	u16 command = conn->ops->get_cmd_val(work);
 -	int n_vec = 1;
 +	int n_vec;
  	char *signing_key;
-@@ -9767,6 +9795,1 @@ void smb3_set_sign_rsp(struct ksmbd_work
+ 
+ 	hdr = ksmbd_resp_buf_curr(work);
+@@ -9764,12 +9792,7 @@ void smb3_set_sign_rsp(struct ksmbd_work
+ 	hdr->Flags |= SMB2_FLAGS_SIGNED;
+ 	memset(hdr->Signature, 0, SMB2_SIGNATURE_SIZE);
+ 
 -	if (hdr->Command == SMB2_READ) {
 -		iov = &work->iov[work->iov_idx - 1];
 -		n_vec++;
@@ -100,3 +106,6 @@ Signed-off-by: Steve French <stfrench@microsoft.com>
 -		iov = &work->iov[work->iov_idx];
 -	}
 +	iov = smb2_get_sign_rsp_iov(work, hdr, &n_vec);
+ 
+ 	ksmbd_sign_smb3_pdu(conn, signing_key, iov, n_vec, signature);
+ 	memcpy(hdr->Signature, signature, SMB2_SIGNATURE_SIZE);

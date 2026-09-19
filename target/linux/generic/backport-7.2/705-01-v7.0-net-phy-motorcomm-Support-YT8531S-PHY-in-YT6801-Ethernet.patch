@@ -23,14 +23,14 @@ Signed-off-by: Jakub Kicinski <kuba@kernel.org>
 
 --- a/drivers/net/phy/motorcomm.c
 +++ b/drivers/net/phy/motorcomm.c
-@@ -910,6 +910,10 @@ static int ytphy_rgmii_clk_delay_config(
- 		val |= FIELD_PREP(YT8521_RC1R_RX_DELAY_MASK, rx_reg) |
- 		       FIELD_PREP(YT8521_RC1R_GE_TX_DELAY_MASK, tx_reg);
+@@ -719,6 +719,10 @@ static int yt8511_config_init(struct phy
+ 		ge = YT8511_DELAY_RX | YT8511_DELAY_GE_TX_EN;
+ 		fe = YT8511_DELAY_FE_TX_EN;
  		break;
 +	case PHY_INTERFACE_MODE_GMII:
 +		if (phydev->drv->phy_id != PHY_ID_YT8531S)
 +			return -EOPNOTSUPP;
 +		return 0;
  	default: /* do not support other modes */
- 		return -EOPNOTSUPP;
- 	}
+ 		ret = -EOPNOTSUPP;
+ 		goto err_restore_page;

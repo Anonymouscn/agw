@@ -13,7 +13,7 @@ Signed-off-by: Chukun Pan <amadeus@jmu.edu.cn>
 
 --- a/drivers/net/ethernet/realtek/r8169.h
 +++ b/drivers/net/ethernet/realtek/r8169.h
-@@ -84,8 +84,6 @@ u8 rtl8168d_efuse_read(struct rtl8169_pr
+@@ -86,8 +86,6 @@ u8 rtl8168d_efuse_read(struct rtl8169_pr
  void r8169_hw_phy_config(struct rtl8169_private *tp, struct phy_device *phydev,
  			 enum mac_version ver);
  
@@ -58,7 +58,7 @@ Signed-off-by: Chukun Pan <amadeus@jmu.edu.cn>
  	led_cdev->flags |= LED_RETAIN_AT_SHUTDOWN;
 --- a/drivers/net/ethernet/realtek/r8169_main.c
 +++ b/drivers/net/ethernet/realtek/r8169_main.c
-@@ -978,28 +978,6 @@ int rtl8125_get_led_mode(struct rtl8169_
+@@ -1015,28 +1015,6 @@ int rtl8125_get_led_mode(struct rtl8169_
  	return ret;
  }
  

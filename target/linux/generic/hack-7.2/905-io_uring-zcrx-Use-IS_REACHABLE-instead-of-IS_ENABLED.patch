@@ -29,7 +29,7 @@ Signed-off-by: Robert Marko <robert.marko@sartura.hr>
 
 --- a/io_uring/zcrx.c
 +++ b/io_uring/zcrx.c
-@@ -87,7 +87,7 @@ static int io_populate_area_dma(struct i
+@@ -111,7 +111,7 @@ static int io_populate_area_dma(struct i
  
  static void io_release_dmabuf(struct io_zcrx_mem *mem)
  {
@@ -38,9 +38,7 @@ Signed-off-by: Robert Marko <robert.marko@sartura.hr>
  		return;
  
  	if (mem->sgt)
-@@ -118,9 +118,9 @@ static int io_import_dmabuf(struct io_zc
- 		return -EINVAL;
- 	if (!ifq->dev)
+@@ -142,7 +142,7 @@ static int io_import_dmabuf(struct io_zc
  		return -EINVAL;
  	if (off)
  		return -EINVAL;

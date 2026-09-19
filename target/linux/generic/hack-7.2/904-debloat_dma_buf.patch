@@ -14,7 +14,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
 
 --- a/drivers/base/Kconfig
 +++ b/drivers/base/Kconfig
-@@ -204,7 +204,7 @@ config SOC_BUS
+@@ -213,7 +213,7 @@ config SOC_BUS
  source "drivers/base/regmap/Kconfig"
  
  config DMA_SHARED_BUFFER
@@ -52,7 +52,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  
  dmabuf_kunit-y := \
  	st-dma-fence.o \
-@@ -13,4 +15,6 @@
+@@ -13,4 +15,6 @@ dmabuf_kunit-y := \
  	st-dma-fence-unwrap.o \
  	st-dma-resv.o
  
@@ -62,16 +62,16 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
 +dma-shared-buffer-objs :=  $(dma-buf-objs-y)
 --- a/drivers/dma-buf/dma-buf.c
 +++ b/drivers/dma-buf/dma-buf.c
-@@ -1739,4 +1739,5 @@ static void __exit dma_buf_deinit(void)
+@@ -1849,4 +1849,5 @@ static void __exit dma_buf_deinit(void)
+ 	dma_buf_uninit_debugfs();
  	kern_unmount(dma_buf_mnt);
- 	dma_buf_uninit_sysfs_statistics();
  }
 -__exitcall(dma_buf_deinit);
 +module_exit(dma_buf_deinit);
 +MODULE_LICENSE("GPL");
 --- a/kernel/sched/core.c
 +++ b/kernel/sched/core.c
-@@ -4434,6 +4434,7 @@ int wake_up_state(struct task_struct *p,
+@@ -4552,6 +4552,7 @@ int wake_up_state(struct task_struct *p,
  {
  	return try_to_wake_up(p, state, 0);
  }
@@ -81,9 +81,9 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
   * Perform scheduler related setup for a newly forked process p.
 --- a/fs/d_path.c
 +++ b/fs/d_path.c
-@@ -314,6 +314,7 @@ char *dynamic_dname(char *buffer, int bu
- 	buffer += buflen - sz;
- 	return memcpy(buffer, temp, sz);
+@@ -315,6 +315,7 @@ char *dynamic_dname(char *buffer, int bu
+ 	start = buffer + (buflen - sz);
+ 	return memmove(start, buffer, sz);
  }
 +EXPORT_SYMBOL_GPL(dynamic_dname);
  

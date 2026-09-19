@@ -16,14 +16,15 @@ Signed-off-by: Thibaut VARÈNE <hacks@slashdirt.org>
 
 --- a/drivers/platform/Kconfig
 +++ b/drivers/platform/Kconfig
-@@ -18,5 +18,7 @@ source "drivers/platform/surface/Kconfig
- source "drivers/platform/x86/Kconfig"
+@@ -19,6 +19,8 @@ source "drivers/platform/x86/Kconfig"
  
  source "drivers/platform/arm64/Kconfig"
-+
-+source "drivers/platform/mikrotik/Kconfig"
  
++source "drivers/platform/mikrotik/Kconfig"
++
  source "drivers/platform/raspberrypi/Kconfig"
+ 
+ source "drivers/platform/wmi/Kconfig"
 --- a/drivers/platform/Makefile
 +++ b/drivers/platform/Makefile
 @@ -13,5 +13,6 @@ obj-$(CONFIG_CHROME_PLATFORMS)	+= chrome

@@ -23,7 +23,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
 +	tristate
  	help
  	  Enable support for the Register Map (regmap) access API.
-  
+ 
 @@ -17,7 +16,7 @@ config REGMAP
  
  config REGMAP_KUNIT
@@ -139,7 +139,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
  #include <linux/mutex.h>
  #include <linux/err.h>
  #include <linux/property.h>
-@@ -3547,3 +3548,5 @@ static int __init regmap_initcall(void)
+@@ -3549,3 +3550,5 @@ static int __init regmap_initcall(void)
  	return 0;
  }
  postcore_initcall(regmap_initcall);
@@ -147,7 +147,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
 +MODULE_LICENSE("GPL");
 --- a/include/linux/regmap.h
 +++ b/include/linux/regmap.h
-@@ -204,7 +204,7 @@ struct reg_sequence {
+@@ -210,7 +210,7 @@ struct reg_sequence {
  	__ret ?: __tmp; \
  })
  

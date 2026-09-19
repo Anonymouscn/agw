@@ -1,6 +1,6 @@
 --- a/tools/perf/tests/workloads/code_with_type.c
 +++ b/tools/perf/tests/workloads/code_with_type.c
-@@ -1,10 +1,11 @@
+@@ -1,12 +1,13 @@
  // SPDX-License-Identifier: GPL-2.0
  #include <pthread.h>
 +#include <stdint.h>
@@ -14,3 +14,4 @@
 +extern void test_rs(uint32_t count);
  
  static volatile sig_atomic_t done;
+ 

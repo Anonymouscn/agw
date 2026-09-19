@@ -690,7 +690,7 @@ Signed-off-by: Jakub Kicinski <kuba@kernel.org>
  
  		return;
  	}
-@@ -2419,6 +2910,14 @@ static int rtl8365mb_setup(struct dsa_sw
+@@ -2424,6 +2915,14 @@ static int rtl8365mb_setup(struct dsa_sw
  	mb = priv->chip_data;
  	cpu = &mb->cpu;
  
@@ -705,7 +705,7 @@ Signed-off-by: Jakub Kicinski <kuba@kernel.org>
  	ret = rtl8365mb_reset_chip(priv);
  	if (ret) {
  		dev_err(priv->dev, "failed to reset chip: %pe\n",
-@@ -2426,6 +2925,13 @@ static int rtl8365mb_setup(struct dsa_sw
+@@ -2431,6 +2930,13 @@ static int rtl8365mb_setup(struct dsa_sw
  		goto out_error;
  	}
  
@@ -719,7 +719,7 @@ Signed-off-by: Jakub Kicinski <kuba@kernel.org>
  	/* Configure switch to vendor-defined initial state */
  	ret = rtl8365mb_switch_init(priv);
  	if (ret) {
-@@ -2658,6 +3164,7 @@ static int rtl8365mb_detect(struct realt
+@@ -2668,6 +3174,7 @@ static int rtl8365mb_detect(struct realt
  }
  
  static const struct phylink_mac_ops rtl8365mb_phylink_mac_ops = {
