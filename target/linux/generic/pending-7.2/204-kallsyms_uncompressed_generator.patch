@@ -1,0 +1,37 @@
+From: OpenWrt kernel port
+Subject: kernel: complete kallsyms uncompressed generator support
+
+---
+ scripts/kallsyms.c | 9 +++++++++
+ 1 file changed, 9 insertions(+)
+
+--- a/scripts/kallsyms.c
++++ b/scripts/kallsyms.c
+@@ -68,7 +68,7 @@
+ 
+ static void usage(void)
+ {
+-	fprintf(stderr, "Usage: kallsyms [--all-symbols] in.map > out.S\n");
++	fprintf(stderr, "Usage: kallsyms [--all-symbols] [--uncompressed] in.map > out.S\n");
+ 	exit(1);
+ }
+ 
+@@ -391,6 +391,10 @@
+ 		for (k = 0; k < table[i]->len; k++)
+ 			printf(", 0x%02x", table[i]->sym[k]);
+ 
++		if (uncompressed) {
++			printf("\t/* %s */\n", table[i]->sym);
++			continue;
++		}
+ 		/*
+ 		 * Now that we wrote out the compressed symbol name, restore the
+ 		 * original name and print it in the comment.
+@@ -689,6 +693,7 @@
+ 		static const struct option long_options[] = {
+ 			{"all-symbols",     no_argument, &all_symbols,     1},
+ 			{"pc-relative",     no_argument, &pc_relative,     1},
++			{"uncompressed",   no_argument, &uncompressed,   1},
+ 			{},
+ 		};
+ 
