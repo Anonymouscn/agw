@@ -175,7 +175,119 @@ apply_git_patch() {
 }
 
 
+# Fetch the current simple-obfs archive and keep its mirror hash in sync.
+# The archive hash belongs to the generated source tarball, not the Git commit.
+update_simple_obfs_hash() {
+    local repo_abs="${ROOT}/feeds/helloworld"
+    local pkg_makefile="${repo_abs}/simple-obfs/Makefile"
+    local patch_abs="${PATCH_DIR}/001-simple-obfs-fix-mirror-hash.patch"
+    local pkg_name pkg_version archive current_hash new_hash
+
+    echo
+    info "simple-obfs: update PKG_MIRROR_HASH from current source archive"
+    info "Repository : ${repo_abs}"
+    info "Patch      : ${patch_abs}"
+
+    if [[ ! -f "${pkg_makefile}" ]]; then
+        err "simple-obfs Makefile does not exist: ${pkg_makefile}"
+        FAILED=$((FAILED + 1))
+        return 1
+    fi
+
+    pkg_name="$(sed -n 's/^PKG_NAME:=//p' "${pkg_makefile}")"
+    pkg_version="$(sed -n 's/^PKG_VERSION:=//p' "${pkg_makefile}")"
+    archive="${ROOT}/dl/${pkg_name}-${pkg_version}.tar.xz"
+
+    info "Downloading current ${pkg_name}-${pkg_version}.tar.xz with hash verification disabled"
+    if ! make -s -C "${ROOT}" package/feeds/helloworld/simple-obfs/download PKG_MIRROR_HASH=skip >"/tmp/simple-obfs-dynamic-download.log" 2>&1; then
+        err "Unable to download current simple-obfs source archive. See /tmp/simple-obfs-dynamic-download.log"
+        FAILED=$((FAILED + 1))
+        return 1
+    fi
+
+    if [[ ! -f "${archive}" ]]; then
+        err "Downloaded archive not found: ${archive}"
+        FAILED=$((FAILED + 1))
+        return 1
+    fi
+
+    current_hash="$(sed -n 's/^PKG_MIRROR_HASH:=//p' "${pkg_makefile}")"
+    new_hash="$(sha256sum "${archive}" | awk '{print $1}')"
+
+    if [[ "${current_hash}" == "${new_hash}" ]]; then
+        ok "PKG_MIRROR_HASH is current: ${new_hash}"
+        SKIPPED=$((SKIPPED + 1))
+        return 0
+    fi
+
+    sed -i -E "s|^PKG_MIRROR_HASH:=.*$|PKG_MIRROR_HASH:=${new_hash}|" "${pkg_makefile}"
+
+    # Keep the patch as an audit/replay artifact, based on the feed's current HEAD.
+    git -C "${repo_abs}" diff --no-ext-diff -- simple-obfs/Makefile >"${patch_abs}"
+    if [[ ! -s "${patch_abs}" ]]; then
+        err "Hash changed but no Git diff was generated for simple-obfs"
+        FAILED=$((FAILED + 1))
+        return 1
+    fi
+
+    ok "Updated PKG_MIRROR_HASH: ${current_hash} -> ${new_hash}"
+    APPLIED=$((APPLIED + 1))
+    return 0
+}
+
+
 #
+
+# Synchronize perf settings semantically so stale patch context cannot fail.
+update_perf_makefile() {
+    local makefile="${ROOT}/package/devel/perf/Makefile"
+    local patch_abs="${PATCH_DIR}/002-perf-zstd-no-llvm.patch"
+    local before after
+    echo
+    info "perf: synchronize dependency and linker settings"
+    info "Repository : ${ROOT}"
+    info "Patch      : ${patch_abs}"
+    if [[ ! -f "${makefile}" ]]; then
+        err "perf Makefile does not exist: ${makefile}"
+        FAILED=$((FAILED + 1))
+        return 1
+    fi
+    before="$(sha256sum "${makefile}" | awk '{print $1}')"
+    python3 - "${makefile}" <<'PY'
+import re, sys
+from pathlib import Path
+p=Path(sys.argv[1])
+s=p.read_text()
+if not re.search(r"(?m)^  DEPENDS:=.*\+libzstd(?:\s|$)", s):
+    s,n=re.subn(r"(?m)^  DEPENDS:= \+libelf \+libdw ", "  DEPENDS:= +libelf +libdw +libzstd ", s, count=1)
+    if n != 1: raise SystemExit("cannot locate perf DEPENDS line")
+if "TARGET_LDFLAGS += $(INTL_LDFLAGS) -fuse-ld=bfd" not in s:
+    s,n=re.subn(r"(?m)^TARGET_LDFLAGS += \$\(INTL_LDFLAGS\)$", "TARGET_LDFLAGS += $(INTL_LDFLAGS) -fuse-ld=bfd", s, count=1)
+    if n == 0:
+        a="HOST_CFLAGS += -I$(LINUX_DIR)/tools/include\n"
+        if a not in s: raise SystemExit("cannot locate perf linker flag anchor")
+        s=s.replace(a, a+"\nTARGET_LDFLAGS += $(INTL_LDFLAGS) -fuse-ld=bfd\n", 1)
+# NO_LIBLLVM and NO_RUST are maintained in the Makefile; do not reinsert them here.
+s=re.sub(r"(?m)^\s*NO_LIBZSTD=1\s*\\\\\n", "", s)
+p.write_text(s)
+PY
+    after="$(sha256sum "${makefile}" | awk '{print $1}')"
+    if [[ "${before}" == "${after}" ]]; then
+        ok "Already synchronized; preserved patch: perf"
+        SKIPPED=$((SKIPPED + 1))
+    else
+        git -C "${ROOT}" diff --no-ext-diff -- package/devel/perf/Makefile > "${patch_abs}"
+        if [[ ! -s "${patch_abs}" ]]; then
+            err "Generated perf patch is empty: ${patch_abs}"
+            FAILED=$((FAILED + 1))
+            return 1
+        fi
+        printf "%s perf Makefile synchronized; patch regenerated: %s\n" "$(date -u +%FT%TZ)" "${patch_abs}" >> /tmp/openwrt-patch-changes.log
+        ok "Synchronized and regenerated patch: perf"
+        APPLIED=$((APPLIED + 1))
+    fi
+}
+
 # Header
 #
 echo
@@ -196,10 +308,7 @@ info "Patch dir   : ${PATCH_DIR}"
 # Modification:
 #   Fix PKG_MIRROR_HASH
 #
-apply_git_patch \
-    "feeds/helloworld" \
-    "001-simple-obfs-fix-mirror-hash.patch" \
-    "simple-obfs: update PKG_MIRROR_HASH" || true
+update_simple_obfs_hash || true
 
 
 #
@@ -213,10 +322,7 @@ apply_git_patch \
 #   Remove NO_LIBZSTD
 #   Disable LLVM linkage
 #
-apply_git_patch \
-    "." \
-    "002-perf-zstd-no-llvm.patch" \
-    "perf: enable libzstd dependency and disable LLVM linkage" || true
+update_perf_makefile || true
 
 
 #
@@ -262,6 +368,15 @@ apply_git_patch \
     "feeds/packages" \
     "005-speedtest-go-limit-build-target.patch" \
     "speedtest-go: limit Go package build target" || true
+
+
+# --------------------------------------------------------------------
+# 006. kernel 7.2: fix WMI and i915 module paths
+# --------------------------------------------------------------------
+apply_git_patch \
+    "." \
+    "006-kernel72-wmi-module-path.patch" \
+    "kernel 7.2: fix WMI and i915 module paths" || true
 
 #
 # Summary

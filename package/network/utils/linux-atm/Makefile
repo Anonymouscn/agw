@@ -27,7 +27,7 @@ include $(INCLUDE_DIR)/package.mk
 
 ATM_DEBUG_BINS:=aread awrite atmdiag atmdump atmswitch saaldump \
 		sonetdiag svc_recv svc_send ttcp_atm
-ATM_DEBUG_SBINS:=atmaddr atmloop atmtcp esi atmsigd bus \
+ATM_DEBUG_SBINS:=atmloop atmtcp esi bus \
 		 ilmid ilmidiag lecs les mpcd zeppelin
 ATM_DEBUG_TOOLS:=$(ATM_DEBUG_BINS) $(ATM_DEBUG_SBINS)
 
@@ -148,7 +148,6 @@ endef
 define Package/atm-debug-tools/install
 	$(INSTALL_DIR) $(1)/usr/bin/
 	$(INSTALL_DIR) $(1)/usr/sbin/
-	$(INSTALL_BIN) $(PKG_INSTALL_DIR)/usr/sbin/atmaddr $(1)/usr/sbin/
 	$(INSTALL_BIN) $(PKG_INSTALL_DIR)/usr/sbin/atmloop $(1)/usr/sbin/
 	$(INSTALL_BIN) $(PKG_INSTALL_DIR)/usr/sbin/atmtcp     $(1)/usr/sbin/
 	$(INSTALL_BIN) $(PKG_INSTALL_DIR)/usr/sbin/esi $(1)/usr/sbin/
@@ -156,7 +155,6 @@ define Package/atm-debug-tools/install
 	$(INSTALL_BIN) $(PKG_INSTALL_DIR)/usr/bin/awrite $(1)/usr/bin/
 	$(INSTALL_BIN) $(PKG_INSTALL_DIR)/usr/bin/atmdiag $(1)/usr/bin/
 	$(INSTALL_BIN) $(PKG_INSTALL_DIR)/usr/bin/atmdump $(1)/usr/bin/
-	$(INSTALL_BIN) $(PKG_INSTALL_DIR)/usr/sbin/atmsigd $(1)/usr/sbin/
 	$(INSTALL_BIN) $(PKG_INSTALL_DIR)/usr/sbin/bus $(1)/usr/sbin/
 	$(INSTALL_BIN) $(PKG_INSTALL_DIR)/usr/sbin/ilmid $(1)/usr/sbin/
 	$(INSTALL_BIN) $(PKG_INSTALL_DIR)/usr/sbin/ilmidiag $(1)/usr/sbin/

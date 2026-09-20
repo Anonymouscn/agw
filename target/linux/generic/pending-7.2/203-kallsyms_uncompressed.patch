@@ -1,0 +1,94 @@
+From: Felix Fietkau <nbd@nbd.name>
+Subject: kernel: add a config option for keeping the kallsyms table uncompressed, saving ~9kb kernel size after lzma on ar71xx
+
+[john@phrozen.org: added to my upstream queue 30.12.2016]
+lede-commit: e0e3509b5ce2ccf93d4d67ea907613f5f7ec2eed
+Signed-off-by: Felix Fietkau <nbd@nbd.name>
+---
+ init/Kconfig            | 11 +++++++++++
+ kernel/kallsyms.c       |  8 ++++++++
+ kernel/vmcore_info.c    |  2 ++
+ scripts/kallsyms.c      | 12 ++++++++++++
+ scripts/link-vmlinux.sh |  4 ++++
+ 5 files changed, 37 insertions(+)
+
+--- a/init/Kconfig
++++ b/init/Kconfig
+@@ -1700,6 +1700,17 @@ config SYSFS_SYSCALL
+ 
+ 	  If unsure say N here.
+ 
++config KALLSYMS_UNCOMPRESSED
++	bool "Keep kallsyms uncompressed"
++	depends on KALLSYMS
++	help
++		Normally kallsyms contains compressed symbols (using a token table),
++		reducing the uncompressed kernel image size. Keeping the symbol table
++		uncompressed significantly improves the size of this part in compressed
++		kernel images.
++
++		Say N unless you need compressed kernel images to be small.
++
+ config HAVE_PCSPKR_PLATFORM
+ 	bool
+ 
+--- a/kernel/kallsyms.c
++++ b/kernel/kallsyms.c
+@@ -69,6 +69,11 @@ static unsigned int kallsyms_expand_symb
+ 	 * For every byte on the compressed symbol data, copy the table
+ 	 * entry for that byte.
+ 	 */
++#ifdef CONFIG_KALLSYMS_UNCOMPRESSED
++	memcpy(result, data + 1, len - 1);
++	result += len - 1;
++	len = 0;
++#endif
+ 	while (len) {
+ 		tptr = &kallsyms_token_table[kallsyms_token_index[*data]];
+ 		data++;
+@@ -101,6 +106,9 @@ tail:
+  */
+ static char kallsyms_get_symbol_type(unsigned int off)
+ {
++#ifdef CONFIG_KALLSYMS_UNCOMPRESSED
++	return kallsyms_names[off + 1];
++#endif
+ 	/*
+ 	 * Get just the first code, look it up in the token table,
+ 	 * and return the first char from this token. If MSB of length
+--- a/kernel/vmcore_info.c
++++ b/kernel/vmcore_info.c
+@@ -239,8 +239,10 @@ static int __init crash_save_vmcoreinfo_
+ #ifdef CONFIG_KALLSYMS
+ 	VMCOREINFO_SYMBOL(kallsyms_names);
+ 	VMCOREINFO_SYMBOL(kallsyms_num_syms);
++#ifndef CONFIG_KALLSYMS_UNCOMPRESSED
+ 	VMCOREINFO_SYMBOL(kallsyms_token_table);
+ 	VMCOREINFO_SYMBOL(kallsyms_token_index);
++#endif
+ 	VMCOREINFO_SYMBOL(kallsyms_offsets);
+ #endif /* CONFIG_KALLSYMS */
+ 
+--- a/scripts/kallsyms.c
++++ b/scripts/kallsyms.c
+@@ -57,6 +57,7 @@ static struct sym_entry **table;
+ static unsigned int table_size, table_cnt;
+ static int all_symbols;
+ static int pc_relative;
++static int uncompressed;
+ 
+ static int token_profit[0x10000];
+ 
+--- a/scripts/link-vmlinux.sh
++++ b/scripts/link-vmlinux.sh
+@@ -119,6 +119,10 @@ kallsyms()
+ 		kallsymopt="${kallsymopt} --pc-relative"
+ 	fi
+ 
++	if is_enabled CONFIG_KALLSYMS_UNCOMPRESSED; then
++		kallsymopt="${kallsymopt} --uncompressed"
++	fi
++
+ 	info KSYMS "${2}.S"
+ 	scripts/kallsyms ${kallsymopt} "${1}" > "${2}.S"
+ 
