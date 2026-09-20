@@ -190,7 +190,7 @@ define Package/br2684ctl/install
 endef
 
 $(eval $(call BuildPackage,linux-atm))
-$(eval $(call BuildPackage,atm-tools))
+# atm-tools disabled: arpd is removed by 800-disable-isp-test-missing-atmsvc-uapi.patch
 $(eval $(call BuildPackage,atm-debug-tools))
 $(eval $(call BuildPackage,atm-diagnostics))
 $(eval $(call BuildPackage,br2684ctl))
