@@ -748,7 +748,6 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
 +
 +MODULE_LICENSE("GPL");
 +module_init(xt_flowoffload_tg_init);
-+module_exit(xt_flowoffload_tg_exit);
 --- a/net/netfilter/nf_flow_table_core.c
 +++ b/net/netfilter/nf_flow_table_core.c
 @@ -7,7 +7,6 @@
