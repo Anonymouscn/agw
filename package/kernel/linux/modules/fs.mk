@@ -108,7 +108,8 @@ define KernelPackage/fs-smbfs-common
 	CONFIG_SMBFS
   FILES:= \
 	$(LINUX_DIR)/fs/smb/common/cifs_arc4.ko@lt6.18 \
-	$(LINUX_DIR)/fs/smb/common/cifs_md4.ko
+	$(LINUX_DIR)/fs/smb/common/cifs_md4.ko \
+	$(LINUX_DIR)/fs/smb/common/smb_compress.ko@ge7.2
 endef
 
 define KernelPackage/fs-smbfs-common/description
