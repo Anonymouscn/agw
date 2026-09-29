@@ -738,7 +738,7 @@ Signed-off-by: Felix Fietkau <nbd@nbd.name>
 +	return ret;
 +}
 +
-+static void __exit xt_flowoffload_tg_exit(void)
++static void __exit __maybe_unused xt_flowoffload_tg_exit(void)
 +{
 +	xt_unregister_target(&offload_tg_reg);
 +	unregister_netdevice_notifier(&flow_offload_netdev_notifier);
