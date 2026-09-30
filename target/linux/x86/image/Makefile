@@ -45,7 +45,7 @@ define Build/combined
 		$(CP) $(STAGING_DIR_IMAGE)/grub2/boot$(if $(CONFIG_x86_64),x64,ia32).efi $@.boot/efi/boot/
 	)
 	PADDING="1" SIGNATURE="$(IMG_PART_SIGNATURE)" \
-		$(if $(filter $(1),efi),GUID="$(IMG_PART_DISKGUID)") $(SCRIPT_DIR)/gen_image_generic.sh \
+		$(if $(filter $(1),efi),GUID="$(IMG_PART_DISKGUID)" KERNELPARTTYPE=ef) $(SCRIPT_DIR)/gen_image_generic.sh \
 		$@ \
 		$(CONFIG_TARGET_KERNEL_PARTSIZE) $@.boot \
 		$(CONFIG_TARGET_ROOTFS_PARTSIZE) $(IMAGE_ROOTFS) \

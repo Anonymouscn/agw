@@ -50,7 +50,7 @@ endef
 
 define KernelPackage/acpi-video/x86
   KCONFIG+=CONFIG_ACPI_WMI
-  FILES+=$(LINUX_DIR)/drivers/platform/x86/wmi.ko
+  FILES+=$(LINUX_DIR)/drivers/platform/$(if $(CONFIG_LINUX_7_2),wmi,wmi/x86)/wmi.ko
   AUTOLOAD:=$(call AutoProbe,wmi video)
 endef
 
@@ -582,7 +582,7 @@ define KernelPackage/drm-i915
 	@DISPLAY_SUPPORT +kmod-backlight +kmod-drm-ttm \
 	+kmod-drm-ttm-helper +kmod-drm-kms-helper +kmod-i2c-algo-bit +i915-firmware-dmc \
 	+kmod-drm-display-helper +kmod-drm-buddy +kmod-acpi-video \
-	+kmod-drm-exec +kmod-drm-suballoc-helper
+	+kmod-drm-exec +kmod-drm-suballoc-helper +kmod-lib-zlib-deflate
   KCONFIG:=CONFIG_DRM_I915 \
 	CONFIG_DRM_I915_CAPTURE_ERROR=y \
 	CONFIG_DRM_I915_COMPRESS_ERROR=y \
@@ -608,7 +608,9 @@ define KernelPackage/drm-i915
 	CONFIG_DRM_I915_USERPTR=y \
 	CONFIG_DRM_I915_WERROR=n \
 	CONFIG_FB_INTEL=n
-  FILES:=$(LINUX_DIR)/drivers/gpu/drm/i915/i915.ko
+  FILES:=\
+	$(LINUX_DIR)/drivers/gpu/drm/i915/i915.ko \
+	$(LINUX_DIR)/drivers/char/agp/intel-gtt.ko
   AUTOLOAD:=$(call AutoProbe,i915)
 endef
 

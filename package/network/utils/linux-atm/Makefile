@@ -27,8 +27,7 @@ include $(INCLUDE_DIR)/package.mk
 
 ATM_DEBUG_BINS:=aread awrite atmdiag atmdump atmswitch saaldump \
 		sonetdiag svc_recv svc_send ttcp_atm
-ATM_DEBUG_SBINS:=atmaddr atmloop atmtcp esi atmsigd bus \
-		 ilmid ilmidiag lecs les mpcd zeppelin
+ATM_DEBUG_SBINS:=atmloop esi
 ATM_DEBUG_TOOLS:=$(ATM_DEBUG_BINS) $(ATM_DEBUG_SBINS)
 
 define Package/linux-atm
@@ -148,22 +147,12 @@ endef
 define Package/atm-debug-tools/install
 	$(INSTALL_DIR) $(1)/usr/bin/
 	$(INSTALL_DIR) $(1)/usr/sbin/
-	$(INSTALL_BIN) $(PKG_INSTALL_DIR)/usr/sbin/atmaddr $(1)/usr/sbin/
 	$(INSTALL_BIN) $(PKG_INSTALL_DIR)/usr/sbin/atmloop $(1)/usr/sbin/
-	$(INSTALL_BIN) $(PKG_INSTALL_DIR)/usr/sbin/atmtcp     $(1)/usr/sbin/
 	$(INSTALL_BIN) $(PKG_INSTALL_DIR)/usr/sbin/esi $(1)/usr/sbin/
 	$(INSTALL_BIN) $(PKG_INSTALL_DIR)/usr/bin/aread $(1)/usr/bin/
 	$(INSTALL_BIN) $(PKG_INSTALL_DIR)/usr/bin/awrite $(1)/usr/bin/
 	$(INSTALL_BIN) $(PKG_INSTALL_DIR)/usr/bin/atmdiag $(1)/usr/bin/
 	$(INSTALL_BIN) $(PKG_INSTALL_DIR)/usr/bin/atmdump $(1)/usr/bin/
-	$(INSTALL_BIN) $(PKG_INSTALL_DIR)/usr/sbin/atmsigd $(1)/usr/sbin/
-	$(INSTALL_BIN) $(PKG_INSTALL_DIR)/usr/sbin/bus $(1)/usr/sbin/
-	$(INSTALL_BIN) $(PKG_INSTALL_DIR)/usr/sbin/ilmid $(1)/usr/sbin/
-	$(INSTALL_BIN) $(PKG_INSTALL_DIR)/usr/sbin/ilmidiag $(1)/usr/sbin/
-	$(INSTALL_BIN) $(PKG_INSTALL_DIR)/usr/sbin/lecs $(1)/usr/sbin/
-	$(INSTALL_BIN) $(PKG_INSTALL_DIR)/usr/sbin/les $(1)/usr/sbin/
-	$(INSTALL_BIN) $(PKG_INSTALL_DIR)/usr/sbin/mpcd $(1)/usr/sbin/
-	$(INSTALL_BIN) $(PKG_INSTALL_DIR)/usr/sbin/zeppelin $(1)/usr/sbin/
 	$(INSTALL_BIN) $(PKG_INSTALL_DIR)/usr/bin/atmswitch $(1)/usr/bin/
 	$(INSTALL_BIN) $(PKG_INSTALL_DIR)/usr/bin/saaldump $(1)/usr/bin/
 	$(INSTALL_BIN) $(PKG_INSTALL_DIR)/usr/bin/sonetdiag $(1)/usr/bin/
@@ -192,7 +181,7 @@ define Package/br2684ctl/install
 endef
 
 $(eval $(call BuildPackage,linux-atm))
-$(eval $(call BuildPackage,atm-tools))
+# atm-tools disabled: arpd is removed by 800-disable-isp-test-missing-atmsvc-uapi.patch
 $(eval $(call BuildPackage,atm-debug-tools))
 $(eval $(call BuildPackage,atm-diagnostics))
 $(eval $(call BuildPackage,br2684ctl))

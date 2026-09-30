@@ -142,6 +142,8 @@ xdpdump - a simple tcpdump like tool for capturing packets at the XDP layer
 endef
 
 
+TARGET_LDFLAGS := $(filter-out -fuse-ld=mold,$(TARGET_LDFLAGS))
+TARGET_LDFLAGS += -fuse-ld=bfd
 TARGET_LDFLAGS += $(INTL_LDFLAGS)
 
 CONFIGURE_VARS += \
