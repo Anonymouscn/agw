@@ -506,8 +506,10 @@ define KernelPackage/fs-nfs-common-rpcsec
 	CONFIG_RPCSEC_GSS_KRB5
   FILES:= \
 	$(LINUX_DIR)/net/sunrpc/auth_gss/auth_rpcgss.ko \
-	$(LINUX_DIR)/net/sunrpc/auth_gss/rpcsec_gss_krb5.ko
-  AUTOLOAD:=$(call AutoLoad,31,auth_rpcgss rpcsec_gss_krb5)
+	$(LINUX_DIR)/net/sunrpc/auth_gss/rpcsec_gss_krb5.ko \
+	$(LINUX_DIR)/crypto/krb5/krb5.ko \
+	$(LINUX_DIR)/crypto/krb5enc.ko
+  AUTOLOAD:=$(call AutoLoad,31,auth_rpcgss rpcsec_gss_krb5 krb5 krb5enc)
 endef
 
 define KernelPackage/fs-nfs-common-rpcsec/description
