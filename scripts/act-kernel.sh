@@ -26,11 +26,22 @@ selectors=("$@")
 for i in "${!selectors[@]}"; do
     case ${selectors[$i]} in 64|legacy) selectors[$i]=x86/${selectors[$i]} ;; esac
 done
-jobs=${ACT_KERNEL_JOBS:-32}
-memory=${ACT_KERNEL_MEMORY:-40g}
-parallel=${ACT_KERNEL_PARALLEL:-2}
+jobs=${ACT_KERNEL_JOBS:-12}
+memory=${ACT_KERNEL_MEMORY:-12g}
+parallel=${ACT_KERNEL_PARALLEL:-6}
 [[ $jobs =~ ^[1-9][0-9]*$ && $memory =~ ^[1-9][0-9]*[gm]$ ]]
-[[ $parallel = 1 || $parallel = 2 ]]
+[[ $parallel =~ ^[1-9][0-9]*$ ]]
+if (( jobs * parallel > $(nproc) )); then
+    echo 'Requested CPU budget exceeds available CPUs' >&2
+    exit 2
+fi
+memory_bytes=${memory%?}
+case ${memory: -1} in g) ((memory_bytes *= 1073741824)) ;; m) ((memory_bytes *= 1048576)) ;; esac
+total_memory=$(awk '/^MemTotal:/ {print $2}' /proc/meminfo)
+if (( memory_bytes * parallel > total_memory * 1024 - 8 * 1073741824 )); then
+    echo 'Requested memory budget must leave at least 8 GiB for the host' >&2
+    exit 2
+fi
 command -v "$act_bin" >/dev/null
 docker info >/dev/null
 mkdir -p "$work_base" "$log_base"
@@ -100,6 +111,14 @@ run_job() (
     }
     trap cleanup_job EXIT
     trap 'exit 143' TERM INT
+    if test -d "$workspace"; then
+        test -n "$resume_id"
+        attempt=$record/attempts/$(date -u +%Y%m%dT%H%M%SZ)-$BASHPID
+        mkdir -p "$attempt"
+        find "$record" -maxdepth 1 -type f ! -name state -exec cp -p -t "$attempt" {} +
+        if test -f "$workspace/openwrt/.config"; then cp -p "$workspace/openwrt/.config" "$attempt/config.interrupted"; fi
+        rm -rf -- "$workspace"
+    fi
     image=ghcr.io/openwrt/toolchain:${target//\//-}-latest
     timeout 900 docker pull "$image" > "$record/image-pull.log" 2>&1
     status=FAIL_SETUP
@@ -132,6 +151,17 @@ run_job() (
 )
 declare -A active=()
 failures=()
+while IFS=$'\t' read -r key target version testing release; do
+    [[ $key != key ]] || continue
+    if [[ $(cat "$log_root/$key/state" 2>/dev/null || true) = FAIL_* ]] && test -d "$run_root/$key"; then
+        failures+=("$key")
+    fi
+done < "$log_root/matrix.tsv"
+while [[ ${#failures[@]} -gt 2 ]]; do
+    old=${failures[0]}; failures=("${failures[@]:1}")
+    rm -rf -- "$run_root/$old"
+    printf 'Archived logs retained; old failure workspace reclaimed.\n' > "$log_root/$old/workspace-reclaimed.txt"
+done
 result=0
 write_summary() {
     status_report "$run_id" > "$log_root/summary.tsv.tmp"

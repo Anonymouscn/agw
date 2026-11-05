@@ -30,9 +30,11 @@ digest. Build workspaces are independent under /data/act/runs. Only
 downloads are shared with the production tree; its .config is never
 mounted into builds. A final checksum check records configuration safety.
 
-ACT_KERNEL_PARALLEL is 2 by default (supported: 1 or 2). Each container
-defaults to ACT_KERNEL_JOBS=32 CPUs and ACT_KERNEL_MEMORY=40g. An exclusive
-queue lock prevents competing batches from oversubscribing the host.
+ACT_KERNEL_PARALLEL is 6 by default. Each container defaults to
+ACT_KERNEL_JOBS=12 CPUs and ACT_KERNEL_MEMORY=12g, for 72 CPUs and 72 GiB
+in total on this 72-core, 92-GiB host. Overrides must fit the host CPU
+budget and leave at least 8 GiB of physical memory for the host. An
+exclusive queue lock prevents competing batches from oversubscribing it.
 
 Stages: external toolchain setup, defconfig/version assertions,
 tools/install, toolchain/install, target/linux/clean, target/compile and
@@ -47,6 +49,8 @@ Batch summary.tsv and per-job state files distinguish PENDING, RUNNING,
 PASS and FAIL_<phase>. Stopping the queue marks cancellation separately.
 --status reads live per-job states. --resume continues pending/interrupted
 jobs in the frozen batch and does not retest completed PASS/FAIL entries.
+Interrupted job logs and configuration are archived under attempts before
+that combination is rebuilt in a fresh workspace.
 To retry a failed combination after a source fix, start a new targeted batch.
 
 Successful workspaces and containers are removed after artifact archival.
