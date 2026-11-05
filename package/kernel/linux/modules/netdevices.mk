@@ -701,7 +701,9 @@ define KernelPackage/dwmac-motorcomm
   TITLE:=Motorcomm PCI DWMAC support
   DEPENDS:=@PCI_SUPPORT +kmod-phy-motorcomm +kmod-stmmac-core
   KCONFIG:=CONFIG_DWMAC_MOTORCOMM
-  FILES:=$(LINUX_DIR)/drivers/net/ethernet/stmicro/stmmac/dwmac-motorcomm.ko
+  FILES:= \
+    $(LINUX_DIR)/drivers/net/ethernet/stmicro/stmmac/dwmac-motorcomm.ko \
+    $(LINUX_DIR)/drivers/net/ethernet/stmicro/stmmac/stmmac_libpci.ko@ge7.2
   AUTOLOAD:=$(call AutoProbe,dwmac-motorcomm,1)
 endef
 
