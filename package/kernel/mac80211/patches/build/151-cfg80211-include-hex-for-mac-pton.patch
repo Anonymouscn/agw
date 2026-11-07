@@ -1,0 +1,14 @@
+Subject: [PATCH] cfg80211: include the header declaring mac_pton
+
+The sysfs MAC address setter calls mac_pton without including linux/hex.h.
+Do not rely on transitive includes, which no longer provide its declaration
+when building these backports against Linux 7.2. linux/hex.h declares the
+function on the supported Linux 6.12 and 6.18 kernels as well.
+
+--- a/net/wireless/sysfs.c
++++ b/net/wireless/sysfs.c
+@@ -11,3 +11,4 @@
+ #include <linux/device.h>
++#include <linux/hex.h>
+ #include <linux/module.h>
+ #include <linux/netdevice.h>

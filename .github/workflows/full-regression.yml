@@ -1,0 +1,126 @@
+name: Full kernel and package regression
+
+on:
+  workflow_dispatch:
+    inputs:
+      scope:
+        description: Compile all packages, optionally build every device profile
+        type: choice
+        options: [packages, firmware]
+        default: packages
+      kernel:
+        description: All declared kernel versions, or a targeted rerun
+        type: choice
+        options: [all, '6.12', '6.18', '7.2']
+        default: all
+      targets:
+        description: Comma separated target/subtarget filter; empty means all
+        type: string
+        default: ''
+      include_feeds:
+        description: Include all six configured feeds at their locked revisions
+        type: boolean
+        default: true
+      max_parallel:
+        description: Maximum simultaneous builds
+        type: number
+        default: 2
+
+permissions:
+  contents: read
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.matrix.outputs.matrix }}
+      parallel: ${{ steps.matrix.outputs.parallel }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: Test regression helpers
+        env:
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: python3 -m unittest discover -s .github/workflows/scripts/tests -v
+      - name: Validate locked feeds
+        if: inputs.include_feeds
+        run: python3 .github/act/feed-lock.py validate --lock .github/regression/feeds.lock.json
+      - name: Generate all supported combinations
+        id: matrix
+        env:
+          KERNEL_FILTER: ${{ inputs.kernel }}
+          TARGET_FILTER: ${{ inputs.targets }}
+          MAX_PARALLEL: ${{ inputs.max_parallel }}
+          REGRESSION_SCOPE: ${{ inputs.scope }}
+          FEEDS_MODE: ${{ inputs.include_feeds && 'locked' || 'none' }}
+        run: |
+          mkdir -p regression-plan
+          bash .github/act/kernel-matrix.sh "$PWD" > regression-plan/matrix.tsv
+          python3 .github/act/regression-plan.py regression-plan/matrix.tsv \
+            --kernel "$KERNEL_FILTER" --targets "$TARGET_FILTER" \
+            --parallel "$MAX_PARALLEL" --output regression-plan/plan.json \
+            --scope "$REGRESSION_SCOPE" \
+            --feeds "$FEEDS_MODE" \
+            --github-output "$GITHUB_OUTPUT"
+          cp .github/regression/feeds.lock.json regression-plan/
+      - uses: actions/upload-artifact@v7
+        with:
+          name: full-regression-plan
+          path: regression-plan
+          if-no-files-found: error
+
+  build:
+    needs: plan
+    name: ${{ matrix.key }} / ${{ inputs.scope }}
+    permissions:
+      contents: read
+      packages: read
+      actions: write
+    strategy:
+      fail-fast: false
+      max-parallel: ${{ fromJSON(needs.plan.outputs.parallel) }}
+      matrix:
+        include: ${{ fromJSON(needs.plan.outputs.matrix) }}
+    uses: ./.github/workflows/ci-build.yml
+    with:
+      container_name: toolchain
+      target: ${{ matrix.target }}
+      subtarget: ${{ matrix.subtarget }}
+      testing: ${{ matrix.testing }}
+      expected_kernel: ${{ matrix.kernel }}
+      expected_release: ${{ matrix.release }}
+      include_feeds: ${{ inputs.include_feeds }}
+      feeds_lock: .github/regression/feeds.lock.json
+      regression_all_packages: true
+      build_kernel: true
+      build_all_kmods: true
+      build_all_modules: true
+      build_all_boards: ${{ inputs.scope == 'firmware' }}
+      build_dtb: ${{ inputs.scope == 'firmware' }}
+      build_full: ${{ inputs.scope == 'firmware' }}
+      check: false
+      ccache_type: packages
+
+  summarize:
+    if: always() && needs.plan.result == 'success'
+    needs: [plan, build]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          name: full-regression-plan
+          path: regression-plan
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: '*-regression'
+          path: regression-reports
+      - name: Audit matrix completeness
+        run: |
+          python3 .github/act/regression-summary.py --plan regression-plan/plan.json \
+            --reports regression-reports --output regression-summary.json --require-complete
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: full-regression-summary
+          path: regression-summary.json
+          if-no-files-found: error

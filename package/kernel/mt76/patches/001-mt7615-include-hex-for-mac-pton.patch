@@ -1,0 +1,12 @@
+Subject: [PATCH] mt7615: include the header declaring mac_pton
+
+debugfs uses mac_pton(), declared by linux/hex.h on all supported kernels.
+Include it explicitly rather than relying on transitive includes.
+
+--- a/mt7615/debugfs.c
++++ b/mt7615/debugfs.c
+@@ -1,3 +1,4 @@
+ // SPDX-License-Identifier: BSD-3-Clause-Clear
+ 
++#include <linux/hex.h>
+ #include "mt7615.h"

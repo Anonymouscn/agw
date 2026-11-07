@@ -26,19 +26,66 @@ first defconfig. ALL_KMODS=y and KERNEL_WERROR=y apply to every job.
 
 Docker uses /data/act/docker. Each job uses its matching official
 ghcr.io/openwrt/toolchain:<target>-<subtarget>-latest image, recorded by
-digest. Build workspaces are independent under /data/act/runs. Only
-downloads are shared with the production tree; its .config is never
+digest. Build workspaces are independent under /data/act/runs. Downloads
+are shared with the production tree; build caches have their own root. Its .config is never
 mounted into builds. A final checksum check records configuration safety.
 
-ACT_KERNEL_PARALLEL is 6 by default. Each container defaults to
-ACT_KERNEL_JOBS=12 CPUs and ACT_KERNEL_MEMORY=12g, for 72 CPUs and 72 GiB
-in total on this 72-core, 92-GiB host. Overrides must fit the host CPU
-budget and leave at least 8 GiB of physical memory for the host. An
-exclusive queue lock prevents competing batches from oversubscribing it.
+ACT_KERNEL_PARALLEL defaults to 6, ACT_KERNEL_JOBS to 24 make jobs and
+ACT_KERNEL_MEMORY to 12g. ACT_KERNEL_CPU_MODE=elastic gives containers
+equal CPU shares without hard quotas: idle capacity can be borrowed on
+this 72-vCPU, 92-GiB host. It does not reserve 24 cores per container.
+Host tools use eight make jobs to limit C++ compiler memory pressure;
+kernel and module builds use 24. The build script also accepts
+ACT_KERNEL_TOOLS_JOBS for dedicated experiments.
+Ninja receives an explicit -j8 too: image GNU Make 4.3 uses a pipe
+jobserver that Ninja does not consume, otherwise Ninja can oversubscribe.
+CMake bootstrap receives HOST_CMAKE_JOBS=8 separately; its bootstrap
+invokes Ninja directly rather than through OpenWrt's NINJA variable.
+For hard CPU limits use ACT_KERNEL_CPU_MODE=quota; jobs times parallel
+must then fit nproc. Memory limits must leave at least 8 GiB for the host.
+An exclusive queue lock prevents competing regression batches.
+
+A separate image prefetcher looks only six active plus two upcoming
+combinations ahead. ACT_KERNEL_PREFETCH=2 limits concurrent image pulls
+across both foreground jobs and the prefetcher.
+Per-image locks deduplicate pulls and each batch pins successful pulls by
+digest. Pull failures are retried by the job and remain failures if unresolved.
+
+/data/act/cache (ACT_KERNEL_CACHE_ROOT) stores a shared 24-GB ccache and
+up to 16 GiB of host-tool snapshots. ccache uses compiler content checks
+and target/kernel namespaces; no unsafe sloppiness options are enabled.
+Host-tool snapshots include the exact image digest, source SHA/diff,
+target, kernel mode/version and build script hash in their key. They are
+restored into private container layers at /prebuilt_tools. All builds use
+/workspace/openwrt inside their respective containers so cached host tools
+cannot embed a previous batch's workspace prefix. tools/install still checks
+dependencies on a hit. Atomic publication and extraction locks
+protect readers; snapshot publication is skipped below 60 GiB free space.
+staging_dir and build_dir are never shared writable between jobs.
+Snapshots preserve tracked source mtimes in their exact source namespace:
+OpenWrt's host-tool preparation hashes include timestamps, so a fresh clone
+would otherwise rebuild identical tools. Restoration only touches the
+private clone, including symlink metadata without following link targets.
+
+Per-job timings.tsv, host-tools-cache.txt and ccache-job-stats.json provide
+performance evidence. Cache benefits depend on repeated compatible builds;
+first-time combinations still compile. To drain safely, create DRAIN in the
+batch log directory; the scheduler finishes active jobs and stops launching
+new ones. Remove DRAIN before --resume.
 
 Stages: external toolchain setup, defconfig/version assertions,
 tools/install, toolchain/install, target/linux/clean, target/compile and
-package/linux/compile -k. Keep-going packaging collects all failures but
+package/linux/compile -k, followed by compilation of selected external
+kernel packages. .github/act/external-kmods.py resolves selected kmods
+through tmp/.packageinfo to their source Makefiles and deduplicates package
+variants. Missing metadata fails the job. Targets share a single internal
+make graph after the prerequisite stages, avoiding the top-level wrapper's
+repeated dependency builds for multiple goals. external-kmods.mk retains
+OpenWrt's MAKE_JOBSERVER export so nested package builds stay parallel.
+Targets and results are
+recorded in external-kmod-targets.txt and external-kmods.log/exit. This includes
+separate vendor drivers such as r8101, which package/linux/compile does
+not build. Keep-going packaging collects all failures but
 still returns nonzero. Missing images and setup errors are failures, not
 skipped or passed combinations. A failed job does not stop other jobs.
 
@@ -68,3 +115,8 @@ machine restart, an interrupted batch can be resumed explicitly.
 This checks all declared target/kernel combinations, not every device
 profile, firmware image or runtime boot. Other architectures are cross
 compiled in native amd64 containers. No GitHub secrets are required.
+
+The completed 110-combination batch 20261105T151204Z-1925086 predates
+external-package coverage. Its PASS results cover target/compile and
+package/linux/compile only; they are not evidence that external drivers
+or full firmware builds passed.

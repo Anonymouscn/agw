@@ -15,6 +15,7 @@ jobs:
           test -d /external-toolchain
           test -d /prebuilt_tools
           chown -R buildbot:buildbot "$GITHUB_WORKSPACE" /results
+          chown buildbot:buildbot /cache/host-tools /cache/ccache
       - name: Build all kernel modules in container
         run: |
-          su buildbot -c "cd '$GITHUB_WORKSPACE' && bash .github/act/kernel-build.sh"
+          su buildbot -c "cd /workspace/openwrt && bash .github/act/kernel-build.sh"

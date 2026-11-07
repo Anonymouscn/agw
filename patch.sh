@@ -379,6 +379,38 @@ apply_git_patch \
     "kernel 7.2: fix WMI and i915 module paths" || true
 
 #
+# 007. feed configuration recursion and netatop string API
+# --------------------------------------------------------------------
+apply_git_patch \
+    "feeds/packages" \
+    "007-feed-config-and-netatop.patch" \
+    "feeds: fix LibreSpeed/squeezelite configuration and netatop API" || true
+
+#
+# 008. luci.mk already invokes BuildPackage for RustDesk
+# --------------------------------------------------------------------
+apply_git_patch \
+    "feeds/luci" \
+    "008-luci-rustdesk-single-buildpackage.patch" \
+    "luci: avoid duplicate RustDesk package definition" || true
+
+#
+# 009. Postfix Linux 7 platform detection and definitions
+# --------------------------------------------------------------------
+apply_git_patch \
+    "feeds/packages" \
+    "009-postfix-linux7-platform.patch" \
+    "postfix: complete Linux 7 platform support" || true
+
+#
+# 010. Runtime package cross-compilation compatibility
+# --------------------------------------------------------------------
+apply_git_patch \
+    "feeds/packages" \
+    "010-runtime-cross-build.patch" \
+    "runtime packages: MIPS cgo and QEMU architecture compatibility" || true
+
+#
 # Summary
 #
 echo
