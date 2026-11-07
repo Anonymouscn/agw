@@ -1,0 +1,41 @@
+diff --git a/mail/postfix/Makefile b/mail/postfix/Makefile
+index 363b45f..55f9a8c 100644
+--- a/mail/postfix/Makefile
++++ b/mail/postfix/Makefile
+@@ -9,7 +9,7 @@ include $(TOPDIR)/rules.mk
+ 
+ PKG_NAME:=postfix
+ PKG_VERSION:=3.8.2
+-PKG_RELEASE:=2
++PKG_RELEASE:=3
+ 
+ PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.gz
+ PKG_SOURCE_URL:=http://ftp.porcupine.org/mirrors/postfix-release/official/
+diff --git a/mail/postfix/patches/300-linux-7-host-kernel.patch b/mail/postfix/patches/300-linux-7-host-kernel.patch
+new file mode 100644
+index 0000000..87f5eb4
+--- /dev/null
++++ b/mail/postfix/patches/300-linux-7-host-kernel.patch
+@@ -0,0 +1,22 @@
++--- a/makedefs
+++++ b/makedefs
++@@ -640,7 +640,7 @@
++ 		: ${SHLIB_ENV="LD_LIBRARY_PATH=`pwd`/lib"}
++ 		: ${PLUGIN_LD="${CC-gcc} -shared"}
++ 		;;
++-    Linux.[3456].*)
+++    Linux.[34567].*)
++ 		SYSTYPE=LINUX$RELEASE_MAJOR
++ 		case "$CCARGS" in
++ 		 *-DNO_DB*) ;;
++--- a/src/util/sys_defs.h
+++++ b/src/util/sys_defs.h
++@@ -763,7 +763,7 @@
++   * LINUX.
++   */
++ #if defined(LINUX2) || defined(LINUX3) || defined(LINUX4) || defined(LINUX5) \
++-	|| defined(LINUX6)
+++	|| defined(LINUX6) || defined(LINUX7)
++ #define SUPPORTED
++ #define UINT32_TYPE	unsigned int
++ #define UINT16_TYPE	unsigned short

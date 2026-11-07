@@ -1,0 +1,79 @@
+diff --git a/utils/containerd/Makefile b/utils/containerd/Makefile
+index 61d019c..9e7e36e 100644
+--- a/utils/containerd/Makefile
++++ b/utils/containerd/Makefile
+@@ -2,7 +2,7 @@ include $(TOPDIR)/rules.mk
+ 
+ PKG_NAME:=containerd
+ PKG_VERSION:=2.2.5
+-PKG_RELEASE:=1
++PKG_RELEASE:=2
+ PKG_LICENSE:=Apache-2.0
+ PKG_LICENSE_FILES:=LICENSE
+ PKG_CPE_ID:=cpe:/a:linuxfoundation:containerd
+@@ -15,6 +15,7 @@ PKG_MAINTAINER:=Gerard Ryan <G.M0N3Y.2503@gmail.com>
+ 
+ PKG_BUILD_DEPENDS:=golang/host dockerd
+ PKG_BUILD_PARALLEL:=1
++PKG_BUILD_FLAGS:=no-mips16
+ PKG_INSTALL:=1
+ 
+ GO_PKG:=github.com/containerd/containerd
+diff --git a/utils/qemu/Makefile b/utils/qemu/Makefile
+index cb9c4fa..8b795d4 100644
+--- a/utils/qemu/Makefile
++++ b/utils/qemu/Makefile
+@@ -10,7 +10,7 @@ include $(TOPDIR)/rules.mk
+ 
+ PKG_NAME:=qemu
+ PKG_VERSION:=11.1.1
+-PKG_RELEASE:=1
++PKG_RELEASE:=3
+ PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.xz
+ PKG_SOURCE_URL:=https://download.qemu.org/
+ PKG_HASH:=079ffbff8a7111bbc89022107cbabf3bbfd614d5fc9d7cc675991196aca12482
+@@ -193,7 +193,7 @@ define qemu-target
+     SUBMENU:=Virtualization
+     TITLE:=QEMU target $(1)
+     URL:=https://www.qemu.org
+-    DEPENDS:= +glib2 +libpthread +zlib +libbpf $(QEMU_DEPS_IN_HOST) $(qemu-target-$(1)-deps) \
++    DEPENDS:= +glib2 +libpthread +zlib +libbpf @ARCH_64BIT $(QEMU_DEPS_IN_HOST) $(qemu-target-$(1)-deps) \
+ 	+QEMU_UI_VNC:qemu-keymaps \
+ 	+QEMU_UI_VNC:libpng \
+ 	+QEMU_UI_VNC_JPEG:libjpeg \
+@@ -446,10 +446,14 @@ CONFIGURE_ARGS +=			\
+ 	--disable-vduse-blk-export	\
+ 	--disable-libdw			\
+ 
++CONFIGURE_ARGS += --cpu=$(ARCH)
++
+ CONFIGURE_ARGS += --target-list='$(foreach target,$(qemu-target-list),$(if $(CONFIG_PACKAGE_qemu-$(target)),$(target)))'
+ CONFIGURE_ARGS += $(if $(CONFIG_PACKAGE_qemu-ga),--enable-guest-agent)
+ 
+ TARGET_LDFLAGS += -Wl,--as-needed
++# MIPS GCC LTO needs PIE code generation at link time as well as compile time.
++TARGET_LDFLAGS += $(if $(filter mips%,$(ARCH)),-fPIE)
+ MAKE_VARS += V=1
+ # ARCH is special in qemu's build system, e.g. ARCH mips64 will be translated
+ # there to mips and stored in config-host.mak
+diff --git a/utils/runc/Makefile b/utils/runc/Makefile
+index d44f140..c20411c 100644
+--- a/utils/runc/Makefile
++++ b/utils/runc/Makefile
+@@ -2,7 +2,7 @@ include $(TOPDIR)/rules.mk
+ 
+ PKG_NAME:=runc
+ PKG_VERSION:=1.3.6
+-PKG_RELEASE:=1
++PKG_RELEASE:=2
+ PKG_LICENSE:=Apache-2.0
+ PKG_LICENSE_FILES:=LICENSE
+ PKG_CPE_ID:=cpe:/a:linuxfoundation:runc
+@@ -15,6 +15,7 @@ PKG_MAINTAINER:=Gerard Ryan <G.M0N3Y.2503@gmail.com>
+ 
+ PKG_BUILD_DEPENDS:=golang/host dockerd
+ PKG_BUILD_PARALLEL:=1
++PKG_BUILD_FLAGS:=no-mips16
+ PKG_INSTALL:=1
+ 
+ GO_PKG:=github.com/opencontainers/runc

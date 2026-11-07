@@ -31,7 +31,7 @@ HOST_CONFIGURE_VARS += \
 
 HOST_CONFIGURE_ARGS := \
 	--no-debugger \
-	$(if $(MAKE_JOBSERVER),--parallel="$(MAKE_JOBSERVER)") \
+	$(if $(or $(HOST_CMAKE_JOBS),$(MAKE_JOBSERVER)),--parallel="$(or $(HOST_CMAKE_JOBS),$(MAKE_JOBSERVER))") \
 	--prefix="$(STAGING_DIR_HOST)" \
 	--system-expat \
 	--system-liblzma \
