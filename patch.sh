@@ -411,6 +411,14 @@ apply_git_patch \
     "runtime packages: MIPS cgo and QEMU architecture compatibility" || true
 
 #
+# 011. xmlrpc-c: avoid recursive shared-library link races
+# --------------------------------------------------------------------
+apply_git_patch \
+    "feeds/packages" \
+    "011-xmlrpc-c-serialize-recursive-build.patch" \
+    "xmlrpc-c: serialize recursive shared-library builds" || true
+
+#
 # Summary
 #
 echo

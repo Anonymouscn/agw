@@ -1,0 +1,23 @@
+diff --git a/libs/xmlrpc-c/Makefile b/libs/xmlrpc-c/Makefile
+index f575e38..76c9724 100644
+--- a/libs/xmlrpc-c/Makefile
++++ b/libs/xmlrpc-c/Makefile
+@@ -9,7 +9,7 @@ include $(TOPDIR)/rules.mk
+ 
+ PKG_NAME:=xmlrpc-c
+ PKG_VERSION:=1.60.05
+-PKG_RELEASE:=2
++PKG_RELEASE:=3
+ 
+ PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tgz
+ PKG_SOURCE_URL:=@SF/xmlrpc-c/Xmlrpc-c%20Super%20Stable/$(PKG_VERSION)
+@@ -19,7 +19,8 @@ PKG_LICENSE:=VARIOUS
+ PKG_LICENSE_FILES:=doc/COPYING
+ 
+ PKG_INSTALL:=1
+-PKG_BUILD_PARALLEL:=1
++# Recursive subdirectories can link libxmlrpc_util.so concurrently.
++PKG_BUILD_PARALLEL:=0
+ 
+ include $(INCLUDE_DIR)/package.mk
+ include $(INCLUDE_DIR)/nls.mk
