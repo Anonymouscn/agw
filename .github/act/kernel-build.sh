@@ -106,7 +106,7 @@ if [[ ${ACT_KERNEL_STAGE:-full} = full ]]; then
     # tools/install still fills in tools selected only by the target configuration.
     common_key=$( { git rev-parse HEAD; git diff HEAD --binary -- tools include; \
         sha256sum .github/act/kernel-build.sh /opt/agw-host-compiler/packages.tsv; \
-        uname -m; cat /etc/os-release; ldd --version | head -1; } | sha256sum | cut -d" " -f1)
+        uname -m; cat /etc/os-release; ldd --version 2>&1; } | sha256sum | cut -d" " -f1)
     common_cache=/cache/host-tools/common-$common_key.tar
     printf "%s\n" "$common_key" > "$record/common-host-tools-cache.key"
     cache_valid=0
