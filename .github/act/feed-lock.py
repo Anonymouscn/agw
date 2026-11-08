@@ -2,6 +2,7 @@
 """Freeze configured feeds, including reviewed local edits, and restore them."""
 import argparse
 import hashlib
+import os
 import json
 import pathlib
 import re
@@ -82,11 +83,25 @@ def restore(root, lock):
             raise ValueError('Restore requires an isolated empty feed directory: ' + feed['name'])
     for feed in data['feeds']:
         path = root / 'feeds' / feed['name']
-        path.mkdir(parents=True)
-        subprocess.run(['git', 'init', '-q', str(path)], check=True)
-        subprocess.run(['git', '-C', str(path), 'remote', 'add', 'origin', feed['url']], check=True)
-        subprocess.run(['git', '-C', str(path), 'fetch', '--depth=1', 'origin', feed['commit']], check=True)
-        subprocess.run(['git', '-C', str(path), 'checkout', '-q', '--detach', 'FETCH_HEAD'], check=True)
+        seed_root = os.environ.get('AGW_FEED_SEED_ROOT')
+        if seed_root:
+            seed = pathlib.Path(seed_root) / feed['name']
+            if not (seed / '.git').exists():
+                raise ValueError('Missing local feed seed: ' + feed['name'])
+            subprocess.run(['git', '-C', str(seed), 'cat-file', '-e',
+                            feed['commit'] + '^{commit}'], check=True)
+            subprocess.run(['git', 'clone', '--local', '--quiet', '--no-checkout',
+                            str(seed), str(path)], check=True)
+            subprocess.run(['git', '-C', str(path), 'remote', 'set-url', 'origin',
+                            feed['url']], check=True)
+            subprocess.run(['git', '-C', str(path), 'checkout', '-q', '--detach',
+                            feed['commit']], check=True)
+        else:
+            path.mkdir(parents=True)
+            subprocess.run(['git', 'init', '-q', str(path)], check=True)
+            subprocess.run(['git', '-C', str(path), 'remote', 'add', 'origin', feed['url']], check=True)
+            subprocess.run(['git', '-C', str(path), 'fetch', '--depth=1', 'origin', feed['commit']], check=True)
+            subprocess.run(['git', '-C', str(path), 'checkout', '-q', '--detach', 'FETCH_HEAD'], check=True)
         if git(path, 'rev-parse', 'HEAD').decode().strip() != feed['commit']:
             raise ValueError('Wrong feed revision: ' + feed['name'])
         if feed['patch']:

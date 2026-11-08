@@ -307,7 +307,8 @@ run_job() (
     set +e
     timeout --signal=TERM --kill-after=120s "$job_timeout" "$act_bin" -C "$workspace/openwrt" -W "$workspace/openwrt/.github/act/kernel.yml" workflow_dispatch \
         --bind --pull=false --network bridge -P "ubuntu-latest=$image" --container-daemon-socket=- \
-        --container-options "$cpu_options --memory=$memory --memory-swap=$memory --label=agw.act.batch=$run_id --label=agw.act.job=$key --volume=$workspace/openwrt:/workspace/openwrt --volume=$record:/results --volume=$root/dl:/cache/dl --volume=$cache_root/host-tools:/cache/host-tools --volume=$cache_root/ccache:/cache/ccache --volume=$cache_root/host-cxx:/opt/agw-host-compiler:ro --volume=$cache_root/heavy:/cache/heavy --volume=$tools_volume:/prebuilt_tools" \
+        --container-options "$cpu_options --memory=$memory --memory-swap=$memory --label=agw.act.batch=$run_id --label=agw.act.job=$key --volume=$workspace/openwrt:/workspace/openwrt --volume=$record:/results --volume=$root/dl:/cache/dl --volume=$cache_root/host-tools:/cache/host-tools --volume=$cache_root/ccache:/cache/ccache --volume=$cache_root/host-cxx:/opt/agw-host-compiler:ro --volume=$cache_root/heavy:/cache/heavy --volume=$tools_volume:/prebuilt_tools --volume=$root/feeds:/feed-seed:ro" \
+        --env "AGW_FEED_SEED_ROOT=/feed-seed" \
         --env "LD_LIBRARY_PATH=/opt/agw-host-compiler/lib" \
         --env "ACT_WORKSPACE_REUSED=$reused" \
         --env "ACT_KERNEL_STAGE=$stage" \
