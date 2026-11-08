@@ -22,5 +22,5 @@ regression_resources_fit() {
         fi
     done
     (( wanted * memory_bytes + reserved_memory <= total_memory * 1024 &&
-       wanted * jobs + reserved_cpu <= $(nproc) ))
+       wanted * jobs + reserved_cpu <= $(nproc) * ${cpu_overcommit:-1} ))
 }

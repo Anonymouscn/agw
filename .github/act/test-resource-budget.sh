@@ -25,3 +25,13 @@ regression_reap_ready
 [[ $reaped = 99999999 && ${#active[@]} = 1 ]]
 kill -0 "$live_pid"
 echo 'PASS: admission polling does not wait for live jobs; reaps only a completed PID'
+cpu_overcommit=2
+regression_resources_fit 6
+if regression_resources_fit 8; then echo 'Memory limit ignored under CPU overcommit' >&2; exit 1; fi
+total_memory=$((196 * 1048576))
+memory_bytes=$((16 * 1073741824))
+jobs=12
+cpu_overcommit=2
+regression_resources_fit 12
+if regression_resources_fit 13; then echo 'Oversubscribed too many lanes' >&2; exit 1; fi
+echo 'PASS: 12 lanes x 12 jobs on 72 cores with 192 GiB memory cap'

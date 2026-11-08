@@ -51,13 +51,17 @@ job_timeout=${ACT_REGRESSION_JOB_TIMEOUT:-24h}
 [[ $job_timeout =~ ^[1-9][0-9]*[smhd]$ ]]
 memory=${ACT_KERNEL_MEMORY:-$default_memory}
 parallel=${ACT_KERNEL_PARALLEL:-$default_parallel}
+cpu_overcommit=${ACT_KERNEL_CPU_OVERCOMMIT:-1}
+disk_per_lane_gib=${ACT_KERNEL_DISK_PER_LANE_GIB:-24}
 [[ $jobs =~ ^[1-9][0-9]*$ && $memory =~ ^[1-9][0-9]*[gm]$ ]]
 [[ $tools_jobs =~ ^[1-9][0-9]*$ ]]
 (( tools_jobs <= $(nproc) ))
 [[ $parallel =~ ^[1-9][0-9]*$ ]]
+[[ $cpu_overcommit =~ ^[1-9][0-9]*$ && $disk_per_lane_gib =~ ^[1-9][0-9]*$ ]]
+(( cpu_overcommit <= 3 ))
 [[ $cpu_mode = elastic || $cpu_mode = quota ]]
 [[ $prefetch =~ ^[1-4]$ ]]
-if (( jobs > $(nproc) )) || { [[ $cpu_mode = quota ]] && (( jobs * parallel > $(nproc) )); }; then
+if (( jobs > $(nproc) )) || { [[ $cpu_mode = quota ]] && (( jobs * parallel > $(nproc) * cpu_overcommit )); }; then
     echo 'Requested CPU budget exceeds available CPUs' >&2
     exit 2
 fi
@@ -256,10 +260,12 @@ run_job() (
            test "$(cat "$log_base/$seed/$key/image.digest")" = "$image" &&
            cmp -s "$log_base/$seed/scope.env" "$log_root/scope.env" &&
            test "$(product_fingerprint "$work_base/$seed/source")" = "$(product_fingerprint "$run_root/source")"; then
-            docker volume inspect "agw-tools-$seed-$key" >/dev/null
+            seed_volume=$(cat "$log_base/$seed/$key/tools-volume.txt")
+            [[ $seed_volume =~ ^agw-tools-[a-zA-Z0-9_.-]+$ ]]
+            docker volume inspect "$seed_volume" >/dev/null
             mv "$work_base/$seed/$key" "$workspace"
             reused=1
-            tools_volume=agw-tools-$seed-$key
+            tools_volume=$seed_volume
             printf 'SEED=%s\nPRODUCT_SOURCE_VERIFIED=1\n' "$seed" > "$record/reused-workspace.env"
         fi
     fi
@@ -300,7 +306,7 @@ run_job() (
     printf '%s\n' "$tools_volume" > "$record/tools-volume.txt"
     stage=full
     if (( resume_packages == 1 )); then stage=packages; fi
-    printf 'CPU_MODE=%s\nMAKE_JOBS=%s\nTOOLS_JOBS=%s\nMEMORY=%s\nPARALLEL=%s\nPULL_LIMIT=%s\n' "$cpu_mode" "$jobs" "$tools_jobs" "$memory" "$parallel" "$prefetch" > "$record/resources.env"
+    printf 'CPU_MODE=%s\nMAKE_JOBS=%s\nTOOLS_JOBS=%s\nMEMORY=%s\nPARALLEL=%s\nPULL_LIMIT=%s\nCPU_OVERCOMMIT=%s\nDISK_PER_LANE_GIB=%s\n' "$cpu_mode" "$jobs" "$tools_jobs" "$memory" "$parallel" "$prefetch" "$cpu_overcommit" "$disk_per_lane_gib" > "$record/resources.env"
     printf 'SCOPE=%s\nFEEDS=%s\nJOB_TIMEOUT=%s\n' "$scope" "$feeds_mode" "$job_timeout" >> "$record/resources.env"
     cpu_options=--cpu-shares=1024
     if [[ $cpu_mode = quota ]]; then cpu_options="--cpus=$jobs"; fi
@@ -415,12 +421,12 @@ while IFS=$'\t' read -r key target version testing release; do
     fi
     free_kb=$(df -Pk "$work_base" | awk 'NR==2 {print $4}')
     reserve_kb=52428800
-    if [[ $scope != kernel ]]; then reserve_kb=$((83886080 + ${#active[@]} * 25165824)); fi
+    if [[ $scope != kernel ]]; then reserve_kb=$((83886080 + ${#active[@]} * disk_per_lane_gib * 1048576)); fi
     if (( free_kb < reserve_kb )); then
         while (( ${#active[@]} > 0 && free_kb < reserve_kb )); do
             if ! regression_reap_ready; then sleep 2; fi
             free_kb=$(df -Pk "$work_base" | awk 'NR==2 {print $4}')
-            if [[ $scope != kernel ]]; then reserve_kb=$((83886080 + ${#active[@]} * 25165824)); fi
+            if [[ $scope != kernel ]]; then reserve_kb=$((83886080 + ${#active[@]} * disk_per_lane_gib * 1048576)); fi
         done
         free_kb=$(df -Pk "$work_base" | awk 'NR==2 {print $4}')
         # Keep diagnostics; reclaim failed generated trees before blocking the matrix.
