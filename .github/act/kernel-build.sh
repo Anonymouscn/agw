@@ -102,18 +102,28 @@ run_make() {
 if [[ ${ACT_KERNEL_STAGE:-full} = full ]]; then
     phase=host-tools-cache
     tools_cache=/cache/host-tools/${ACT_KERNEL_TOOLS_KEY:?}.tar
+    # Host tools are shared across targets built with the same source and host ABI.
+    # tools/install still fills in tools selected only by the target configuration.
+    common_key=$( { git rev-parse HEAD; git diff HEAD --binary -- tools include; \
+        sha256sum .github/act/kernel-build.sh /opt/agw-host-compiler/packages.tsv; \
+        uname -m; cat /etc/os-release; ldd --version | head -1; } | sha256sum | cut -d" " -f1)
+    common_cache=/cache/host-tools/common-$common_key.tar
+    printf "%s\n" "$common_key" > "$record/common-host-tools-cache.key"
     cache_valid=0
     exec 7>/cache/host-tools/cache.lock
     flock -s 7
     # Restore into this container's private layer. Never share writable tools.
     if [[ ${ACT_WORKSPACE_REUSED:-0} = 1 ]]; then
         echo REUSED_WORKSPACE > "$record/host-tools-cache.txt"
-    elif test -f "$tools_cache"; then
-        tar -xf "$tools_cache" -C /prebuilt_tools
+    elif test -f "$tools_cache" || test -f "$common_cache"; then
+        cache_file=$tools_cache
+        cache_kind=HIT
+        if ! test -f "$cache_file"; then cache_file=$common_cache; cache_kind=COMMON_HIT; fi
+        tar -xf "$cache_file" -C /prebuilt_tools
         if test -f /prebuilt_tools/staging_dir/host/agw-source-times.json; then
             source_times restore /prebuilt_tools/staging_dir/host/agw-source-times.json
             cache_valid=1
-            echo HIT > "$record/host-tools-cache.txt"
+            echo "$cache_kind" > "$record/host-tools-cache.txt"
         else
             echo MISS > "$record/host-tools-cache.txt"
         fi
@@ -204,9 +214,10 @@ if [[ ${ACT_KERNEL_STAGE:-full} = full ]]; then
         tar -cf "$cache_tmp" -C /prebuilt_tools staging_dir build_dir
         flock -x 7
         mv "$cache_tmp" "$tools_cache"
+        if ! test -f "$common_cache"; then ln "$tools_cache" "$common_cache"; fi
         # Bound snapshots to 16 GiB; extraction holds the shared lock above.
         while (( $(du -sk /cache/host-tools | cut -f1) > 16777216 )); do
-            oldest=$(find /cache/host-tools -maxdepth 1 -name '*.tar' -printf '%T@ %p\n' | sort -n | head -1 | cut -d' ' -f2-)
+            oldest=$(find /cache/host-tools -maxdepth 1 -name '*.tar' ! -name 'common-*.tar' -printf '%T@ %p\n' | sort -n | head -1 | cut -d' ' -f2-)
             test -n "$oldest" || break
             rm -f -- "$oldest"
         done
