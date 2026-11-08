@@ -13,6 +13,8 @@ scope=${ACT_REGRESSION_SCOPE:-kernel}
 feeds=${ACT_REGRESSION_FEEDS:-none}
 [[ $scope = kernel || $scope = packages || $scope = firmware ]]
 [[ $feeds = none || $feeds = locked ]]
+export AGW_SCAN_JOBS="${ACT_KERNEL_SCAN_JOBS:-$jobs}"
+[[ $AGW_SCAN_JOBS =~ ^[1-9][0-9]*$ ]]
 if [[ $scope != kernel ]]; then
     export CARGO_BUILD_JOBS=2 RUST_BUILD_JOBS=2 GOMAXPROCS="$jobs" CMAKE_BUILD_PARALLEL_LEVEL="$tools_jobs"
 fi
