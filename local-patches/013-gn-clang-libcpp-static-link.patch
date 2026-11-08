@@ -1,0 +1,35 @@
+diff --git a/gn/Makefile b/gn/Makefile
+index d7d79d9..9c69e67 100644
+--- a/gn/Makefile
++++ b/gn/Makefile
+@@ -5,7 +5,7 @@
+ include $(TOPDIR)/rules.mk
+ 
+ PKG_NAME:=gn
+-PKG_RELEASE:=1
++PKG_RELEASE:=2
+ 
+ PKG_SOURCE_PROTO:=git
+ PKG_SOURCE_URL:=https://gn.googlesource.com/gn.git
+@@ -19,6 +19,8 @@ PKG_MAINTAINER:=Tianling Shen <cnsztl@immortalwrt.org>
+ 
+ PKG_HOST_ONLY:=1
+ HOST_BUILD_PARALLEL:=1
++GN_HOST_CC ?= clang
++GN_HOST_CXX ?= clang++
+ 
+ include $(INCLUDE_DIR)/host-build.mk
+ include $(INCLUDE_DIR)/package.mk
+@@ -37,8 +39,12 @@ define Package/gn/description
+ endef
+ 
+ define Host/Configure
++	CC="$(GN_HOST_CC)" \
++	CXX="$(GN_HOST_CXX)" \
++	CXXFLAGS="$(GN_HOST_CXXFLAGS)" LDFLAGS="$(GN_HOST_LDFLAGS)" \
+ 	$(PYTHON) $(HOST_BUILD_DIR)/build/gen.py \
+ 		--no-last-commit-position \
++		--no-static-libstdc++ \
+ 		--allow-warnings
+ endef
+ 

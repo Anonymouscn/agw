@@ -2,7 +2,6 @@
 set -euo pipefail
 if [[ -x /opt/agw-host-compiler/bin/make ]]; then
     export MAKE=/opt/agw-host-compiler/bin/make
-    export PATH="/opt/agw-host-compiler/bin:$PATH"
 fi
 real=${AGW_NINJA_REAL:-/prebuilt_tools/staging_dir/host/bin/ninja}
 args=()
@@ -15,16 +14,14 @@ while (( $# )); do
 done
 case "$PWD" in
     *llvm*|*rust*)
-        slots=${AGW_HEAVY_LOCK_DIR:-/cache/heavy}
-        mkdir -p "$slots"
-        while :; do
-            for slot in 0 1; do
-                exec 9> "$slots/llvm-$slot.lock"
-                if flock -n 9; then exec "$real" -j4 "${args[@]}"; fi
-                exec 9>&-
-            done
-            sleep 1
-        done
+        # Each container already has an independent memory/CPU cap.
+        # A global semaphore starves unrelated architectures of work.
+        jobs=${AGW_HEAVY_JOBS:-8}
+        [[ $jobs =~ ^[1-9][0-9]*$ ]] || exit 2
+        # Bound simultaneous heavy graphs inside one container, not globally.
+        exec 9> "${AGW_HEAVY_LOCAL_LOCK:-/tmp/agw-heavy-ninja.lock}"
+        flock 9
+        exec "$real" -j"$jobs" "${args[@]}"
         ;;
 esac
 case "${MAKEFLAGS:-}" in

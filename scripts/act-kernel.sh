@@ -64,8 +64,8 @@ fi
 memory_bytes=${memory%?}
 case ${memory: -1} in g) ((memory_bytes *= 1073741824)) ;; m) ((memory_bytes *= 1048576)) ;; esac
 total_memory=$(awk '/^MemTotal:/ {print $2}' /proc/meminfo)
-if (( memory_bytes * parallel > total_memory * 1024 - 8 * 1073741824 )); then
-    echo 'Requested memory budget must leave at least 8 GiB for the host' >&2
+if (( memory_bytes * parallel > total_memory * 1024 )); then
+    echo 'Requested memory budget exceeds physical memory' >&2
     exit 2
 fi
 source "$root/.github/act/resource-budget.sh"
@@ -93,6 +93,7 @@ git -C "$root" diff HEAD --binary > "$log_root/source.diff"
 if test -s "$log_root/source.diff"; then git -C "$run_root/source" apply --binary "$log_root/source.diff"; fi
 mkdir -p "$run_root/source/.github/act"
 cp -a "$root/.github/act/." "$run_root/source/.github/act/"
+cp -a "$root/local-patches/." "$run_root/source/local-patches/"
 git -C "$run_root/source" rev-parse HEAD > "$log_root/source.commit"
 bash "$run_root/source/.github/act/kernel-matrix.sh" "$run_root/source" > "$log_root/all-matrix.tsv" 2> "$log_root/matrix.log"
 head -1 "$log_root/all-matrix.tsv" > "$log_root/matrix.tsv"
@@ -203,6 +204,7 @@ run_job() (
     workspace=$run_root/$key
     record=$log_root/$key
     reused=0
+    resume_packages=0
     tools_volume=agw-tools-$run_id-$key
     status=FAIL_SETUP
     cleanup_job() {
@@ -225,14 +227,25 @@ run_job() (
         find "$record" -maxdepth 1 -type f ! -name state -exec cp -p -t "$attempt" {} +
         if test -d "$record/workflow"; then cp -a "$record/workflow" "$attempt/workflow"; fi
         if test -f "$workspace/openwrt/.config"; then cp -p "$workspace/openwrt/.config" "$attempt/config.interrupted"; fi
-        rm -rf -- "$workspace"
+        if [[ ${ACT_KERNEL_RESUME_PACKAGES:-0} = 1 ]] &&
+           test -f "$record/tools-volume.txt" && test -f "$record/kernel.release"; then
+            test -f "$workspace/openwrt/.config"
+            tools_volume=$(cat "$record/tools-volume.txt")
+            [[ $tools_volume =~ ^agw-tools-[a-zA-Z0-9_.-]+$ ]]
+            docker volume inspect "$tools_volume" >/dev/null
+            reused=1
+            resume_packages=1
+            printf 'RESUME=packages\nWORKSPACE_RETAINED=1\n' > "$record/resumed-packages.env"
+        else
+            rm -rf -- "$workspace"
+        fi
     fi
     status=FAIL_IMAGE
     pull_image "$target"
     cp "$log_root/images/${target//\//-}.log" "$record/image-pull.log"
     status=FAIL_SETUP
     image=$(cat "$log_root/images/${target//\//-}.digest")
-    if [[ -n ${ACT_KERNEL_SEED_RUN:-} ]]; then
+    if (( reused == 0 )) && [[ -n ${ACT_KERNEL_SEED_RUN:-} ]]; then
         seed=$ACT_KERNEL_SEED_RUN
         [[ $seed =~ ^[0-9]{8}T[0-9]{6}Z-[0-9]+$ ]]
         product_fingerprint() {
@@ -273,6 +286,8 @@ run_job() (
         git clone --local --quiet "$run_root/source" "$workspace/openwrt"
         if test -s "$log_root/source.diff"; then git -C "$workspace/openwrt" apply --binary "$log_root/source.diff"; fi
     fi
+    mkdir -p "$workspace/openwrt/local-patches"
+    cp -a "$run_root/source/local-patches/." "$workspace/openwrt/local-patches/"
     mkdir -p "$workspace/openwrt/.github/act"
     cp -a "$run_root/source/.github/act/." "$workspace/openwrt/.github/act/"
     sed -i "1s/Local Kernel CI/Local Kernel CI $run_id $key/" "$workspace/openwrt/.github/act/kernel.yml"
@@ -282,6 +297,9 @@ run_job() (
     "$act_bin" --version > "$record/act.version"
     cache_key=$( { printf '%s\n' "$image" "$target" "$version" "$testing" "$scope" "$feeds_mode"; git -C "$run_root/source" rev-parse HEAD; cat "$log_root/source.diff"; sha256sum < "$workspace/openwrt/.github/act/kernel-build.sh"; } | sha256sum | cut -d' ' -f1)
     printf '%s\n' "$cache_key" > "$record/host-tools-cache.key"
+    printf '%s\n' "$tools_volume" > "$record/tools-volume.txt"
+    stage=full
+    if (( resume_packages == 1 )); then stage=packages; fi
     printf 'CPU_MODE=%s\nMAKE_JOBS=%s\nTOOLS_JOBS=%s\nMEMORY=%s\nPARALLEL=%s\nPULL_LIMIT=%s\n' "$cpu_mode" "$jobs" "$tools_jobs" "$memory" "$parallel" "$prefetch" > "$record/resources.env"
     printf 'SCOPE=%s\nFEEDS=%s\nJOB_TIMEOUT=%s\n' "$scope" "$feeds_mode" "$job_timeout" >> "$record/resources.env"
     cpu_options=--cpu-shares=1024
@@ -290,7 +308,9 @@ run_job() (
     timeout --signal=TERM --kill-after=120s "$job_timeout" "$act_bin" -C "$workspace/openwrt" -W "$workspace/openwrt/.github/act/kernel.yml" workflow_dispatch \
         --bind --pull=false --network bridge -P "ubuntu-latest=$image" --container-daemon-socket=- \
         --container-options "$cpu_options --memory=$memory --memory-swap=$memory --label=agw.act.batch=$run_id --label=agw.act.job=$key --volume=$workspace/openwrt:/workspace/openwrt --volume=$record:/results --volume=$root/dl:/cache/dl --volume=$cache_root/host-tools:/cache/host-tools --volume=$cache_root/ccache:/cache/ccache --volume=$cache_root/host-cxx:/opt/agw-host-compiler:ro --volume=$cache_root/heavy:/cache/heavy --volume=$tools_volume:/prebuilt_tools" \
+        --env "LD_LIBRARY_PATH=/opt/agw-host-compiler/lib" \
         --env "ACT_WORKSPACE_REUSED=$reused" \
+        --env "ACT_KERNEL_STAGE=$stage" \
         --env "ACT_KERNEL_TOOLS_KEY=$cache_key" \
         --env "ACT_KERNEL_TARGET=${target%/*}" --env "ACT_KERNEL_SUBTARGET=${target#*/}" \
         --env "ACT_KERNEL_VERSION=$version" --env "ACT_KERNEL_RELEASE=$release" \
@@ -328,7 +348,12 @@ write_summary() {
 }
 reap_one() {
     local completed= key code=0 pid
-    wait -n -p completed "${!active[@]}" || code=$?
+    if [[ -n ${1:-} ]]; then
+        completed=$1
+        wait "$completed" || code=$?
+    else
+        wait -n -p completed "${!active[@]}" || code=$?
+    fi
     if [[ -z ${completed:-} ]]; then
         for pid in "${!active[@]}"; do
             if ! kill -0 "$pid" 2>/dev/null; then
@@ -382,16 +407,20 @@ while IFS=$'\t' read -r key target version testing release; do
     printf 'PENDING\n' > "$log_root/$key/state"
     if [[ $scope != kernel ]]; then
         while ! regression_resources_fit "$((${#active[@]} + 1))"; do
+            if test -f "$log_root/DRAIN"; then break 2; fi
             printf '%s waiting: active=%s, requested jobs=%s memory=%s\n' "$(date -u +%FT%TZ)" "${#active[@]}" "$jobs" "$memory" >> "$log_root/resource-waits.log"
-            if (( ${#active[@]} > 0 )); then reap_one; else sleep 5; fi
+            if ! regression_reap_ready; then sleep 2; fi
         done
     fi
     free_kb=$(df -Pk "$work_base" | awk 'NR==2 {print $4}')
     reserve_kb=52428800
-    if [[ $scope != kernel ]]; then reserve_kb=$((104857600 + ${#active[@]} * 67108864)); fi
+    if [[ $scope != kernel ]]; then reserve_kb=$((83886080 + ${#active[@]} * 25165824)); fi
     if (( free_kb < reserve_kb )); then
-        while [[ ${#active[@]} -gt 0 ]]; do reap_one; done
-        if [[ $scope != kernel ]]; then reserve_kb=104857600; fi
+        while (( ${#active[@]} > 0 && free_kb < reserve_kb )); do
+            if ! regression_reap_ready; then sleep 2; fi
+            free_kb=$(df -Pk "$work_base" | awk 'NR==2 {print $4}')
+            if [[ $scope != kernel ]]; then reserve_kb=$((83886080 + ${#active[@]} * 25165824)); fi
+        done
         free_kb=$(df -Pk "$work_base" | awk 'NR==2 {print $4}')
         # Keep diagnostics; reclaim failed generated trees before blocking the matrix.
         for old in "${failures[@]}"; do

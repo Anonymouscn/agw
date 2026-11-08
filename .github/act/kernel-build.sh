@@ -19,6 +19,20 @@ fi
 phase=setup
 make_bin=make
 make_style=()
+if [[ -x /opt/agw-host-compiler/bin/make ]]; then
+    make_bin=/opt/agw-host-compiler/bin/make
+    make_style=(--jobserver-style=fifo)
+    mkdir -p /tmp/agw-make-bin
+    ln -sf "$make_bin" /tmp/agw-make-bin/make
+    ln -sf "$make_bin" /tmp/agw-make-bin/gmake
+    export MAKE="$make_bin" PATH="/tmp/agw-make-bin:$PATH"
+    export GN_HOST_CC=/opt/agw-host-compiler/bin/cc
+    export GN_HOST_CXX=/opt/agw-host-compiler/bin/cxx
+    export GN_HOST_LDFLAGS="-L/opt/agw-host-compiler/lib -Wl,-rpath=/opt/agw-host-compiler/lib"
+fi
+cp .github/act/ninja-budget.sh /tmp/agw-host-ninja
+chmod +x /tmp/agw-host-ninja
+cp /tmp/agw-host-ninja "$record/ninja-wrapper.txt"
 [[ $jobs =~ ^[1-9][0-9]*$ ]]
 [[ $tools_jobs =~ ^[1-9][0-9]*$ ]]
 [[ $board =~ ^[a-zA-Z0-9_]+$ && $subtarget =~ ^[a-zA-Z0-9_]+$ ]]
@@ -138,6 +152,12 @@ if [[ ${ACT_KERNEL_STAGE:-full} = full ]]; then
     if [[ $testing = 1 ]]; then printf 'CONFIG_TESTING_KERNEL=y\n' >> .config; fi
     ./scripts/ext-toolchain.sh --toolchain "${toolchains[0]}" --overwrite-config --config "$board/$subtarget"
     run_make defconfig defconfig
+    if [[ $feeds = locked ]]; then
+        phase=local-patches
+        ./patch.sh > "$record/local-patches.log" 2>&1
+        phase=configuration-refresh
+        run_make defconfig defconfig
+    fi
     if [[ $scope != kernel || $feeds = locked ]]; then
         phase=configuration-diagnostics
         python3 .github/act/check-config.py --log "$record/config-check.log"
@@ -148,12 +168,12 @@ if [[ ${ACT_KERNEL_STAGE:-full} = full ]]; then
         test -f "$host_cxx/complete"
         "$host_cxx/bin/cxx" --version > "$record/host-cxx-version.txt"
         export GN_HOST_CC="$host_cxx/bin/cc" GN_HOST_CXX="$host_cxx/bin/cxx"
-        export GN_HOST_LDFLAGS="-Wl,-rpath=$host_cxx/lib"
+        export GN_HOST_LDFLAGS="-L$host_cxx/lib -Wl,-rpath=$host_cxx/lib"
     fi
     if [[ -x /opt/agw-host-compiler/bin/make ]]; then
         make_bin=/opt/agw-host-compiler/bin/make
         make_style=(--jobserver-style=fifo)
-        export MAKE="$make_bin" PATH="/opt/agw-host-compiler/bin:$PATH"
+        export MAKE="$make_bin"
         "$make_bin" --version > "$record/make-version.txt"
     fi
     phase=configuration-validation
@@ -202,6 +222,24 @@ if [[ ${ACT_KERNEL_STAGE:-full} = full ]]; then
 elif [[ ${ACT_KERNEL_STAGE:-full} = kmods ]]; then
     test -f .config
     run_make defconfig defconfig
+elif [[ ${ACT_KERNEL_STAGE:-full} = packages ]]; then
+    test "${ACT_WORKSPACE_REUSED:-0}" = 1
+    [[ $scope != kernel ]]
+    test -f .config
+    test -f tmp/.packageinfo
+    release_file=$(find build_dir -path "*/linux-$release/include/config/kernel.release" -print -quit)
+    test -n "$release_file"
+    actual_release=$(cat "$release_file")
+    [[ $actual_release = "$release" || $actual_release = "$release-"* ]]
+    printf '%s\n' "$actual_release" > "$record/kernel.release"
+    # Reconfigure failed host tools that cached the old compiler/make paths.
+    while IFS= read -r stamp; do
+        if test ! -f "$(dirname "$stamp")/.built"; then
+            printf '%s\n' "$stamp" >> "$record/reconfigured-host-stamps.txt"
+            rm -f -- "$stamp"
+        fi
+    done < <(find build_dir/hostpkg -maxdepth 3 -type f \
+        \( -path '*/gn-*/.configured*' -o -path '*/perl-*/.configured*' -o -path '*/otp_src_*/.configured*' \))
 else
     echo 'Unsupported ACT_KERNEL_STAGE' >&2
     exit 2

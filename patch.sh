@@ -198,11 +198,15 @@ update_simple_obfs_hash() {
     pkg_version="$(sed -n 's/^PKG_VERSION:=//p' "${pkg_makefile}")"
     archive="${ROOT}/dl/${pkg_name}-${pkg_version}.tar.xz"
 
-    info "Downloading current ${pkg_name}-${pkg_version}.tar.xz with hash verification disabled"
-    if ! make -s -C "${ROOT}" package/feeds/helloworld/simple-obfs/download PKG_MIRROR_HASH=skip >"/tmp/simple-obfs-dynamic-download.log" 2>&1; then
-        err "Unable to download current simple-obfs source archive. See /tmp/simple-obfs-dynamic-download.log"
-        FAILED=$((FAILED + 1))
-        return 1
+    if [[ ! -f "${archive}" ]]; then
+        info "Downloading current ${pkg_name}-${pkg_version}.tar.xz with hash verification disabled"
+        if ! make -s -C "${ROOT}" package/feeds/helloworld/simple-obfs/download PKG_MIRROR_HASH=skip >"/tmp/simple-obfs-dynamic-download.log" 2>&1; then
+            err "Unable to download current simple-obfs source archive. See /tmp/simple-obfs-dynamic-download.log"
+            FAILED=$((FAILED + 1))
+            return 1
+        fi
+    else
+        info "Using cached ${pkg_name}-${pkg_version}.tar.xz to refresh the hash"
     fi
 
     if [[ ! -f "${archive}" ]]; then
@@ -417,6 +421,22 @@ apply_git_patch \
     "feeds/packages" \
     "011-xmlrpc-c-serialize-recursive-build.patch" \
     "xmlrpc-c: serialize recursive shared-library builds" || true
+
+#
+# 012. shadowsocks-libev current source archive hash
+# --------------------------------------------------------------------
+apply_git_patch \
+    "feeds/helloworld" \
+    "012-shadowsocks-libev-fix-mirror-hash.patch" \
+    "shadowsocks-libev: refresh mirror hash from current source archive" || true
+
+#
+# 013. GN host linking with clang/libc++
+# --------------------------------------------------------------------
+apply_git_patch \
+    "feeds/helloworld" \
+    "013-gn-clang-libcpp-static-link.patch" \
+    "gn: avoid incompatible static-libstdc++ flag with clang/libc++" || true
 
 #
 # Summary

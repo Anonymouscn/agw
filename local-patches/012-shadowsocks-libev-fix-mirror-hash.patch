@@ -1,0 +1,13 @@
+diff --git a/shadowsocks-libev/Makefile b/shadowsocks-libev/Makefile
+index 4cb9592..75baa62 100644
+--- a/shadowsocks-libev/Makefile
++++ b/shadowsocks-libev/Makefile
+@@ -22,7 +22,7 @@ PKG_SOURCE_DATE:=2025-1-20
+ PKG_SOURCE_VERSION:=9afa3cacf947f910be46b69fc5a7a1fdd02fd5e6
+ PKG_SOURCE_SUBDIR:=$(PKG_NAME)-$(PKG_VERSION)
+ PKG_SOURCE:=$(PKG_SOURCE_SUBDIR).tar.xz
+-PKG_MIRROR_HASH:=b3898ad0a557bc8b0bbb2f3888101d461944239b0b7d4d4c6f164d73694a4595
++PKG_MIRROR_HASH:=57b20d6f5bfd41e750d2e3069a3417e6f80e77132218fb4d99b29a85786f330d
+ 
+ PKG_MAINTAINER:=Yousong Zhou <yszhou4tech@gmail.com>
+ 
