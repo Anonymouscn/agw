@@ -463,6 +463,12 @@ apply_git_patch \
     "017-postfix-unset-ld-library-path.patch" \
     "postfix: clear LD_LIBRARY_PATH during configuration" || true
 
+# 018. rtorrent configure must see a single compiler executable.
+apply_git_patch \
+    "feeds/packages" \
+    "018-rtorrent-cxx-no-ccache.patch" \
+    "rtorrent: use executable C++ compiler in C++17 probe" || true
+
 #
 # Summary
 #

@@ -1,0 +1,12 @@
+diff --git a/net/rtorrent/Makefile b/net/rtorrent/Makefile
+index f54c4fb..4bfc444 100644
+--- a/net/rtorrent/Makefile
++++ b/net/rtorrent/Makefile
+@@ -77,6 +77,7 @@ CONFIGURE_ARGS += --with-xmlrpc-c
+ endif
+ 
+ CONFIGURE_VARS += \
++	CXX="$(TARGET_CXX_NOCACHE)" \
+ 	ax_cv_cxx_compile_cxx17=yes
+ 
+ define Package/rtorrent/install
