@@ -34,21 +34,30 @@ def fetch(url, destination, validate=None, max_time=600):
         raise ValueError('Invalid download retry settings')
     destination.parent.mkdir(parents=True, exist_ok=True)
     part = destination.with_name(destination.name + '.' + str(os.getpid()) + '.part')
+    part.unlink(missing_ok=True)
     try:
         for attempt in range(attempts):
-            part.unlink(missing_ok=True)
+            offset = part.stat().st_size if part.exists() else 0
             try:
-                subprocess.run([
-                    'curl', '--fail', '--location', '--silent', '--show-error', '--compressed',
+                command = [
+                    'curl', '--fail', '--location', '--silent', '--show-error',
                     '--connect-timeout', '20', '--max-time', str(max_time),
                     '--speed-limit', '1024', '--speed-time', '60',
                     '--output', str(part), url,
-                ], check=True)
+                ]
+                if offset:
+                    command.extend(('--continue-at', '-'))
+                subprocess.run(command, check=True)
                 if validate:
                     validate(part)
                 os.replace(part, destination)
                 return destination
             except (subprocess.CalledProcessError, ValueError, UnicodeError) as error:
+                # Keep an interrupted transfer for HTTP Range resume. A server
+                # refusing Range (curl 33) or a failed checksum needs a fresh copy.
+                if isinstance(error, (ValueError, UnicodeError)) or (
+                        isinstance(error, subprocess.CalledProcessError) and error.returncode == 33):
+                    part.unlink(missing_ok=True)
                 print('Download attempt {}/{} failed for {}: {}'.format(
                     attempt + 1, attempts, url, error), file=sys.stderr)
                 if attempt + 1 == attempts:

@@ -51,6 +51,8 @@ class DownloadTests(unittest.TestCase):
         self.signature = self.sign(self.body)
         self.counts = collections.Counter()
         self.truncate = 0
+        self.truncate_archive = 0
+        self.ranges = []
         self.corrupt_archive = 0
         self.fail_manifest = False
         self.bad_signature = False
@@ -82,6 +84,26 @@ class DownloadTests(unittest.TestCase):
                     body = fixture.payload
                     if fixture.counts[self.path] <= fixture.corrupt_archive:
                         body = b'corrupt archive'
+                    range_header = self.headers.get('Range')
+                    if range_header:
+                        fixture.ranges.append(range_header)
+                        start = int(range_header.removeprefix('bytes=').removesuffix('-'))
+                        self.send_response(206)
+                        self.send_header('Content-Range', 'bytes {}-{}/{}'.format(
+                            start, len(body) - 1, len(body)))
+                        self.send_header('Content-Length', str(len(body) - start))
+                        self.end_headers()
+                        self.wfile.write(body[start:])
+                        return
+                    if fixture.counts[self.path] <= fixture.truncate_archive:
+                        self.send_response(200)
+                        self.send_header('Content-Length', str(len(body)))
+                        self.end_headers()
+                        self.wfile.write(body[:len(body) // 2])
+                        self.wfile.flush()
+                        self.connection.shutdown(socket.SHUT_WR)
+                        self.close_connection = True
+                        return
                 else:
                     self.send_error(404)
                     return
@@ -170,6 +192,14 @@ class DownloadTests(unittest.TestCase):
         self.cli('extract', '--artifact', self.archive)
         self.assertEqual(self.counts['/' + self.archive], 2)
         self.assertEqual(self.counts['/sha256sums'], 1)
+        self.assertEqual((self.root / 'toolchain/probe.txt').read_text(), 'correct toolchain\n')
+
+    def test_interrupted_archive_download_resumes_with_range(self):
+        self.select()
+        self.truncate_archive = 1
+        self.cli('extract', '--artifact', self.archive)
+        self.assertEqual(self.counts['/' + self.archive], 2)
+        self.assertEqual(self.ranges, ['bytes={}-'.format(len(self.payload) // 2)])
         self.assertEqual((self.root / 'toolchain/probe.txt').read_text(), 'correct toolchain\n')
 
     def test_bad_signature_never_downloads_or_extracts_archive(self):

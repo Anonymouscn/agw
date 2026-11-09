@@ -428,6 +428,15 @@ jobs:
             ./scripts/feeds update -a
           fi
           ./scripts/feeds install -a
+          # Mesa's pinned host pip packaging version can downgrade the shared
+          # Python host environment after python-packaging/host is installed.
+          if [ -d feeds/video ]; then
+            patch="$PWD/local-patches/014-mesa-use-host-python-packaging.patch"
+            if ! git -C feeds/video apply --reverse --check "$patch" >/dev/null 2>&1; then
+              git -C feeds/video apply --check "$patch"
+              git -C feeds/video apply "$patch"
+            fi
+          fi
 
       - name: Restore ccache cache
         id: restore-ccache-cache

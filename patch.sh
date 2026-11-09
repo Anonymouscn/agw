@@ -438,6 +438,13 @@ apply_git_patch \
     "013-gn-clang-libcpp-static-link.patch" \
     "gn: avoid incompatible static-libstdc++ flag with clang/libc++" || true
 
+# 014. Mesa must use the shared host packaging package. Its pinned pip
+# requirement downgrades packaging and breaks python-anyio/vcs-versioning.
+apply_git_patch \
+    "feeds/video" \
+    "014-mesa-use-host-python-packaging.patch" \
+    "mesa: keep host Python packaging version consistent" || true
+
 #
 # Summary
 #
