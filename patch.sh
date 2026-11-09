@@ -469,6 +469,12 @@ apply_git_patch \
     "018-rtorrent-cxx-no-ccache.patch" \
     "rtorrent: use executable C++ compiler in C++17 probe" || true
 
+# 019. Chromium Python generators must parse on Python 3.9.
+apply_git_patch \
+    "feeds/helloworld" \
+    "019-naiveproxy-python39-annotations.patch" \
+    "naiveproxy: defer Python type annotations" || true
+
 #
 # Summary
 #

@@ -449,6 +449,14 @@ jobs:
             done
           fi
 
+          if [ -d feeds/helloworld ]; then
+            patch="$PWD/local-patches/019-naiveproxy-python39-annotations.patch"
+            if ! git -C feeds/helloworld apply --reverse --check "$patch" >/dev/null 2>&1; then
+              git -C feeds/helloworld apply --check "$patch"
+              git -C feeds/helloworld apply "$patch"
+            fi
+          fi
+
       - name: Restore ccache cache
         id: restore-ccache-cache
         if: inputs.use_ccache_cache == true &&

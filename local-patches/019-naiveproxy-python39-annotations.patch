@@ -1,0 +1,17 @@
+diff --git a/naiveproxy/patches/010-python39-defer-histogram-annotations.patch b/naiveproxy/patches/010-python39-defer-histogram-annotations.patch
+new file mode 100644
+index 0000000..4e07245
+--- /dev/null
++++ b/naiveproxy/patches/010-python39-defer-histogram-annotations.patch
+@@ -0,0 +1,11 @@
++--- a/src/tools/metrics/histograms/extract_histograms.py
+++++ b/src/tools/metrics/histograms/extract_histograms.py
++@@ -7,6 +7,8 @@ see histograms.xml; example path:
++ tools/metrics/histograms/metadata/uma/histograms.xml
++ """
++ 
+++from __future__ import annotations
+++
++ import bisect
++ import copy
++ import datetime
