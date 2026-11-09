@@ -1,0 +1,109 @@
+diff --git a/net/apfree-wifidog/Makefile b/net/apfree-wifidog/Makefile
+index bac6896..d861659 100644
+--- a/net/apfree-wifidog/Makefile
++++ b/net/apfree-wifidog/Makefile
+@@ -9,7 +9,7 @@ include $(TOPDIR)/rules.mk
+ 
+ PKG_NAME:=apfree-wifidog
+ PKG_VERSION:=9.09.2938
+-PKG_RELEASE:=1
++PKG_RELEASE:=2
+ 
+ PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.gz
+ PKG_SOURCE_URL:=https://codeload.github.com/liudf0716/$(PKG_NAME)/tar.gz/$(PKG_VERSION)?
+@@ -21,13 +21,14 @@ PKG_LICENSE:=GPL-3.0-or-later
+ PKG_LICENSE_FILES:=COPYING
+ 
+ include $(INCLUDE_DIR)/package.mk
++include $(INCLUDE_DIR)/nls.mk
+ include $(INCLUDE_DIR)/cmake.mk
+ 
+ define Package/apfree-wifidog
+   SUBMENU:=Captive Portals
+   SECTION:=net
+   CATEGORY:=Network
+-  DEPENDS:=+zlib +libjson-c +libevent2 +libevent2-openssl +libuci +openssl-util +libnetfilter-queue +conntrack +libmosquitto +libnftnl +libmnl +libbpf
++  DEPENDS:=+zlib +libjson-c +libevent2 +libevent2-openssl +libuci +openssl-util +libnetfilter-queue +conntrack +libmosquitto +libnftnl +libmnl +libbpf $(INTL_DEPENDS)
+   TITLE:=Apfree's wireless captive portal solution
+   URL:=https://github.com/liudf0716/apfree_wifidog
+ endef
+diff --git a/net/meshtasticd/Makefile b/net/meshtasticd/Makefile
+index 8e796bc..1420e8f 100644
+--- a/net/meshtasticd/Makefile
++++ b/net/meshtasticd/Makefile
+@@ -5,7 +5,7 @@ include $(TOPDIR)/rules.mk
+ PKG_NAME:=meshtasticd
+ PKG_VERSION:=2.7.15
+ PKG_SOURCE_VERSION:=v$(PKG_VERSION).567b8ea
+-PKG_RELEASE:=2
++PKG_RELEASE:=3
+ 
+ PKG_BUILD_DIR:=$(BUILD_DIR)/$(PKG_NAME)-$(PKG_VERSION)
+ PKG_SOURCE_PROTO:=git
+@@ -108,7 +108,7 @@ PLATFORMIO_BUILD_FLAGS := \
+ 	-lulfius \
+ 	-lyder \
+ 	$(if $(CONFIG_USE_GLIBC),,-largp) \
+-	$(if $(INTL_FULL),-lintl)
++	$(if $(INTL_FULL),-L$(INTL_PREFIX)/lib -Wl,-rpath-link=$(INTL_PREFIX)/lib -lintl)
+ 
+ BUILD_FLAGS := \
+ 	TARGET_AR="$(TARGET_AR)" \
+diff --git a/net/nut/Makefile b/net/nut/Makefile
+index e1bf9bc..970062e 100644
+--- a/net/nut/Makefile
++++ b/net/nut/Makefile
+@@ -9,7 +9,7 @@ include $(TOPDIR)/rules.mk
+ 
+ PKG_NAME:=nut
+ PKG_VERSION:=2.8.5
+-PKG_RELEASE:=6
++PKG_RELEASE:=7
+ 
+ PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.gz
+ PKG_SOURCE_URL:=https://www.networkupstools.org/source/2.8/
+@@ -33,6 +33,7 @@ PKG_CONFIG_DEPENDS:= \
+   CONFIG_NUT_SSL_NSS
+ 
+ include $(INCLUDE_DIR)/package.mk
++include $(INCLUDE_DIR)/nls.mk
+ 
+ define Package/nut/Default
+   SECTION:=net
+@@ -51,6 +52,7 @@ endef
+ 
+ define Package/nut
+   $(call Package/nut/Default)
++  DEPENDS:=$(INTL_DEPENDS)
+   MENU:=1
+ endef
+ 
+diff --git a/utils/lpac/Makefile b/utils/lpac/Makefile
+index 0a2cfab..194b9fc 100644
+--- a/utils/lpac/Makefile
++++ b/utils/lpac/Makefile
+@@ -4,7 +4,7 @@ include $(TOPDIR)/rules.mk
+ 
+ PKG_NAME:=lpac
+ PKG_VERSION:=2.3.0
+-PKG_RELEASE:=2
++PKG_RELEASE:=3
+ 
+ PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.gz
+ PKG_SOURCE_URL:=https://codeload.github.com/estkme-group/lpac/tar.gz/refs/tags/v$(PKG_VERSION)?
+@@ -16,6 +16,7 @@ PKG_LICENSE:=AGPL-3.0-only LGPL-2.0-only
+ CMAKE_INSTALL:=1
+ 
+ include $(INCLUDE_DIR)/package.mk
++include $(INCLUDE_DIR)/nls.mk
+ include $(INCLUDE_DIR)/cmake.mk
+ 
+ define Package/lpac
+@@ -24,6 +25,7 @@ define Package/lpac
+   TITLE:=eUICC eSIM LPA written in C
+   DEPENDS:= \
+     +libcurl \
++    $(INTL_DEPENDS) \
+     +LPAC_WITH_PCSC:libpcsclite \
+     +LPAC_WITH_PCSC:pcscd \
+     +LPAC_WITH_MBIM:libmbim \

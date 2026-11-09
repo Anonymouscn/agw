@@ -22,13 +22,26 @@ status_report() {
     done < "$record/matrix.tsv"
 }
 resume_id=
+parallel_override=
+timeout_override=
 case ${1:-} in
     --status) status_report "${2:-}"; exit ;;
     --list|--plan) exec bash "$root/.github/act/kernel-matrix.sh" "$root" ;;
-    --all) shift ;;
-    --resume) resume_id=${2:?batch id required}; shift 2 ;;
 esac
-selectors=("$@")
+selectors=()
+while (( $# )); do
+    case $1 in
+        --all) shift ;;
+        --resume) resume_id=${2:?batch id required}; shift 2 ;;
+        --parallel) parallel_override=${2:?parallel lane count required}; shift 2 ;;
+        --parallel=*) parallel_override=${1#*=}; test -n "$parallel_override" || { echo 'Parallel lane count required' >&2; exit 2; }; shift ;;
+        --job-timeout) timeout_override=${2:?job timeout required}; shift 2 ;;
+        --job-timeout=*) timeout_override=${1#*=}; test -n "$timeout_override" || { echo 'Job timeout required' >&2; exit 2; }; shift ;;
+        --) shift; selectors+=("$@"); break ;;
+        -*) echo "Unsupported option: $1" >&2; exit 2 ;;
+        *) selectors+=("$1"); shift ;;
+    esac
+done
 scope=${ACT_REGRESSION_SCOPE:-kernel}
 feeds_mode=${ACT_REGRESSION_FEEDS:-none}
 if [[ -n $resume_id && -f "$log_base/$resume_id/scope.env" ]]; then
@@ -47,16 +60,17 @@ cpu_mode=${ACT_KERNEL_CPU_MODE:-elastic}
 cache_root=${ACT_KERNEL_CACHE_ROOT:-/data/act/cache}
 prefetch=${ACT_KERNEL_PREFETCH:-2}
 if [[ $scope = kernel ]]; then default_memory=12g; default_parallel=6; else default_memory=12g; default_parallel=6; fi
-job_timeout=${ACT_REGRESSION_JOB_TIMEOUT:-24h}
-[[ $job_timeout =~ ^[1-9][0-9]*[smhd]$ ]]
+if [[ $scope = kernel ]]; then default_timeout=24h; else default_timeout=48h; fi
+job_timeout=${timeout_override:-${ACT_REGRESSION_JOB_TIMEOUT:-$default_timeout}}
+[[ $job_timeout =~ ^[1-9][0-9]*[smhd]$ ]] || { echo 'Job timeout must be a positive duration (s, m, h or d)' >&2; exit 2; }
 memory=${ACT_KERNEL_MEMORY:-$default_memory}
-parallel=${ACT_KERNEL_PARALLEL:-$default_parallel}
+parallel=${parallel_override:-${ACT_KERNEL_PARALLEL:-$default_parallel}}
 cpu_overcommit=${ACT_KERNEL_CPU_OVERCOMMIT:-1}
 disk_per_lane_gib=${ACT_KERNEL_DISK_PER_LANE_GIB:-24}
 [[ $jobs =~ ^[1-9][0-9]*$ && $memory =~ ^[1-9][0-9]*[gm]$ ]]
 [[ $tools_jobs =~ ^[1-9][0-9]*$ ]]
 (( tools_jobs <= $(nproc) ))
-[[ $parallel =~ ^[1-9][0-9]*$ ]]
+{ [[ $parallel =~ ^[1-9][0-9]*$ ]] && (( parallel <= 16 )); } || { echo 'Parallel lanes must be between 1 and 16' >&2; exit 2; }
 [[ $cpu_overcommit =~ ^[1-9][0-9]*$ && $disk_per_lane_gib =~ ^[1-9][0-9]*$ ]]
 (( cpu_overcommit <= 3 ))
 [[ $cpu_mode = elastic || $cpu_mode = quota ]]
@@ -145,6 +159,15 @@ pull_image() (
     exec 9>"$cache_root/images/$image_key.lock"
     flock 9
     if ! test -s "$log_root/images/$image_key.digest"; then
+        # A cached digest is immutable and keeps regression runs independent of
+        # GHCR availability. Refresh only when explicitly requested.
+        if [[ ${ACT_KERNEL_IMAGE_REFRESH:-0} != 1 ]] &&
+           docker image inspect "$image" >/dev/null 2>&1; then
+            docker image inspect "$image" --format '{{index .RepoDigests 0}}' > "$log_root/images/$image_key.digest.tmp"
+            mv "$log_root/images/$image_key.digest.tmp" "$log_root/images/$image_key.digest"
+            printf 'Using locally cached image %s\n' "$image" > "$log_root/images/$image_key.log"
+            return 0
+        fi
         # Bound foreground and speculative pulls together, not just prefetch.
         acquired=0
         while (( acquired == 0 )); do

@@ -445,6 +445,24 @@ apply_git_patch \
     "014-mesa-use-host-python-packaging.patch" \
     "mesa: keep host Python packaging version consistent" || true
 
+# 015. Use executable compiler names for Cargo and GCC target libgcc.
+apply_git_patch \
+    "feeds/packages" \
+    "015-fish-cargo-and-gcc-target-cc.patch" \
+    "fish/GCC: avoid invalid cross-compiler wrapper and Cargo linker names" || true
+
+# 016. Supply libintl build dependencies and linker search paths.
+apply_git_patch \
+    "feeds/packages" \
+    "016-build-nls-link-paths.patch" \
+    "NLS: stage and link libintl for affected packages" || true
+
+# 017. Postfix rejects LD_LIBRARY_PATH during makedefs.
+apply_git_patch \
+    "feeds/packages" \
+    "017-postfix-unset-ld-library-path.patch" \
+    "postfix: clear LD_LIBRARY_PATH during configuration" || true
+
 #
 # Summary
 #

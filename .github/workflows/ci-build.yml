@@ -438,6 +438,17 @@ jobs:
             fi
           fi
 
+          # Replay package-feed fixes after the feed refresh.
+          if [ -d feeds/packages ]; then
+            for patch_name in 009-postfix-linux7-platform.patch 015-fish-cargo-and-gcc-target-cc.patch 016-build-nls-link-paths.patch 017-postfix-unset-ld-library-path.patch; do
+              patch="$PWD/local-patches/$patch_name"
+              if ! git -C feeds/packages apply --reverse --check "$patch" >/dev/null 2>&1; then
+                git -C feeds/packages apply --check "$patch"
+                git -C feeds/packages apply "$patch"
+              fi
+            done
+          fi
+
       - name: Restore ccache cache
         id: restore-ccache-cache
         if: inputs.use_ccache_cache == true &&

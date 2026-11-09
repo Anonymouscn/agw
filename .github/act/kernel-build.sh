@@ -38,6 +38,14 @@ cp /tmp/agw-host-ninja "$record/ninja-wrapper.txt"
 [[ $jobs =~ ^[1-9][0-9]*$ ]]
 [[ $tools_jobs =~ ^[1-9][0-9]*$ ]]
 [[ $board =~ ^[a-zA-Z0-9_]+$ && $subtarget =~ ^[a-zA-Z0-9_]+$ ]]
+validate_kernel_release() {
+    local release_file actual_release
+    release_file=$(find build_dir -path "*/linux-$release/include/config/kernel.release" -print -quit)
+    test -n "$release_file" || return 1
+    actual_release=$(cat "$release_file") || return 1
+    [[ $actual_release = "$release" || $actual_release = "$release-"* ]] || return 1
+    printf '%s\n' "$actual_release" > "$record/kernel.release"
+}
 finish() {
     result=$?
     set +e
@@ -227,11 +235,7 @@ if [[ ${ACT_KERNEL_STAGE:-full} = full ]]; then
     run_make clean target/linux/clean
     run_make kernel target/compile -j"$jobs"
     phase=kernel-version-validation
-    release_file=$(find build_dir -path "*/linux-$release/include/config/kernel.release" -print -quit)
-    test -n "$release_file"
-    actual_release=$(cat "$release_file")
-    [[ $actual_release = "$release" || $actual_release = "$release-"* ]]
-    printf '%s\n' "$actual_release" > "$record/kernel.release"
+    validate_kernel_release
 elif [[ ${ACT_KERNEL_STAGE:-full} = kmods ]]; then
     test -f .config
     run_make defconfig defconfig
@@ -240,11 +244,7 @@ elif [[ ${ACT_KERNEL_STAGE:-full} = packages ]]; then
     [[ $scope != kernel ]]
     test -f .config
     test -f tmp/.packageinfo
-    release_file=$(find build_dir -path "*/linux-$release/include/config/kernel.release" -print -quit)
-    test -n "$release_file"
-    actual_release=$(cat "$release_file")
-    [[ $actual_release = "$release" || $actual_release = "$release-"* ]]
-    printf '%s\n' "$actual_release" > "$record/kernel.release"
+    validate_kernel_release
     # Reconfigure failed host tools that cached the old compiler/make paths.
     while IFS= read -r stamp; do
         if test ! -f "$(dirname "$stamp")/.built"; then
