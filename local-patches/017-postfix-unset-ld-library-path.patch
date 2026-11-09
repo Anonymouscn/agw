@@ -1,16 +1,7 @@
 diff --git a/mail/postfix/Makefile b/mail/postfix/Makefile
-index 363b45f..acc804b 100644
+index 363b45f..04445e9 100644
 --- a/mail/postfix/Makefile
 +++ b/mail/postfix/Makefile
-@@ -9,7 +9,7 @@ include $(TOPDIR)/rules.mk
- 
- PKG_NAME:=postfix
- PKG_VERSION:=3.8.2
--PKG_RELEASE:=2
-+PKG_RELEASE:=4
- 
- PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.gz
- PKG_SOURCE_URL:=http://ftp.porcupine.org/mirrors/postfix-release/official/
 @@ -219,7 +219,7 @@ define Build/Configure
  		echo "Build error: CDB or BerkeleyDB support must be enabled."; \
  		exit 1; \
