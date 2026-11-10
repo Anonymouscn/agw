@@ -5,8 +5,10 @@ act_bin=${ACT_BIN:-/data/act/bin/act}
 work_base=${ACT_KERNEL_RUN_ROOT:-/data/act/runs}
 log_base=${ACT_KERNEL_LOG_ROOT:-/var/log/agw-act}
 log_storage=${ACT_KERNEL_LOG_STORAGE:-/data/act/logs}
+queue_lock=${ACT_KERNEL_QUEUE_LOCK:-/data/act/kernel-queue.lock}
+latest_run_file=${ACT_KERNEL_LATEST_RUN_FILE:-/data/act/latest-run}
 status_report() {
-    local id=${1:-$(cat /data/act/latest-run)} key target version testing release state
+    local id=${1:-$(cat "$latest_run_file")} key target version testing release state
     [[ $id =~ ^[0-9]{8}T[0-9]{6}Z-[0-9]+$ ]]
     local record=$log_base/$id
     local display_scope=kernel display_feeds=none
@@ -91,7 +93,7 @@ command -v "$act_bin" >/dev/null
 docker info >/dev/null
 mkdir -p "$work_base" "$log_base"
 mkdir -p "$cache_root/images" "$cache_root/host-tools" "$cache_root/ccache" "$cache_root/host-cxx" "$cache_root/heavy"
-exec 8>/data/act/kernel-queue.lock
+exec 8>"$queue_lock"
 flock -n 8 || { echo 'Another kernel regression queue is running' >&2; exit 2; }
 run_id=${resume_id:-$(date -u +%Y%m%dT%H%M%SZ)-$$}
 [[ $run_id =~ ^[0-9]{8}T[0-9]{6}Z-[0-9]+$ ]]
@@ -149,7 +151,7 @@ else
     test -d "$run_root/source/.git"
     rm -f "$log_root/CANCELLED"
 fi
-printf '%s\n' "$run_id" > /data/act/latest-run
+printf '%s\n' "$run_id" > "$latest_run_file"
 printf 'RUNNING\n' > "$log_root/state"
 printf 'Batch %s: %s combinations, parallel=%s\n' "$run_id" "$(($(wc -l < "$log_root/matrix.tsv") - 1))" "$parallel"
 pull_image() (

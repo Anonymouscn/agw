@@ -157,6 +157,15 @@ if [[ ${ACT_KERNEL_STAGE:-full} = full ]]; then
     fi
     toolchains=(/external-toolchain/*/toolchain-*)
     test -d "${toolchains[0]}"
+    # Published toolchains may ship a cc wrapper without its cc.bin alias.
+    for compiler in "${toolchains[0]}"/bin/*-cc; do
+        [[ -L $compiler ]] || continue
+        binary=${compiler}.bin
+        gcc_binary=${compiler%-cc}-gcc.bin
+        if [[ ! -e $binary && -f $gcc_binary ]]; then
+            ln -s "${gcc_binary##*/}" "$binary"
+        fi
+    done
     printf '%s\n' 'CONFIG_ALL_KMODS=y' 'CONFIG_KERNEL_WERROR=y' 'CONFIG_DEVEL=y' > .config
     if [[ $scope != kernel ]]; then
         printf '%s\n' 'CONFIG_ALL=y' 'CONFIG_AUTOREMOVE=y' >> .config

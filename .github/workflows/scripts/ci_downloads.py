@@ -145,6 +145,14 @@ def extract(args):
 
     archive = fetch(args.url.rsplit('/', 1)[0] + '/' + name, pathlib.Path(name), verify, max_time=1800)
     subprocess.run(['tar', '-xf', str(archive)], check=True)
+    if name.startswith('openwrt-toolchain-'):
+        # Some published toolchains ship a cc wrapper without its cc.bin alias.
+        # GCC's libgcc install invokes cc to locate libgcc_s.so.
+        for compiler in pathlib.Path(name.rsplit('.tar.', 1)[0]).glob('toolchain-*/bin/*-cc'):
+            binary = compiler.with_name(compiler.name + '.bin')
+            gcc_binary = compiler.with_name(compiler.name[:-2] + 'gcc.bin')
+            if compiler.is_symlink() and not binary.exists() and gcc_binary.is_file():
+                binary.symlink_to(gcc_binary.name)
     archive.unlink()
 
 

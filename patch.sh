@@ -475,6 +475,18 @@ apply_git_patch \
     "019-naiveproxy-python39-annotations.patch" \
     "naiveproxy: defer Python type annotations" || true
 
+# 020. PlatformIO splits comma linker options passed as build flags.
+apply_git_patch \
+    "feeds/packages" \
+    "020-meshtasticd-platformio-link-flags.patch" \
+    "meshtasticd: omit malformed linker flags from PlatformIO compile flags" || true
+
+# 021. libwrap requires severity storage in each ocserv executable.
+apply_git_patch \
+    "feeds/packages" \
+    "021-ocserv-libwrap-severity.patch" \
+    "ocserv: define libwrap severity values" || true
+
 #
 # Summary
 #

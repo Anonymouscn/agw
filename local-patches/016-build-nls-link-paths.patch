@@ -27,28 +27,6 @@ index bac6896..d861659 100644
    TITLE:=Apfree's wireless captive portal solution
    URL:=https://github.com/liudf0716/apfree_wifidog
  endef
-diff --git a/net/meshtasticd/Makefile b/net/meshtasticd/Makefile
-index 8e796bc..1420e8f 100644
---- a/net/meshtasticd/Makefile
-+++ b/net/meshtasticd/Makefile
-@@ -5,7 +5,7 @@ include $(TOPDIR)/rules.mk
- PKG_NAME:=meshtasticd
- PKG_VERSION:=2.7.15
- PKG_SOURCE_VERSION:=v$(PKG_VERSION).567b8ea
--PKG_RELEASE:=2
-+PKG_RELEASE:=3
- 
- PKG_BUILD_DIR:=$(BUILD_DIR)/$(PKG_NAME)-$(PKG_VERSION)
- PKG_SOURCE_PROTO:=git
-@@ -108,7 +108,7 @@ PLATFORMIO_BUILD_FLAGS := \
- 	-lulfius \
- 	-lyder \
- 	$(if $(CONFIG_USE_GLIBC),,-largp) \
--	$(if $(INTL_FULL),-lintl)
-+	$(if $(INTL_FULL),-L$(INTL_PREFIX)/lib -Wl,-rpath-link=$(INTL_PREFIX)/lib -lintl)
- 
- BUILD_FLAGS := \
- 	TARGET_AR="$(TARGET_AR)" \
 diff --git a/net/nut/Makefile b/net/nut/Makefile
 index e1bf9bc..970062e 100644
 --- a/net/nut/Makefile
