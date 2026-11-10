@@ -375,12 +375,12 @@ apply_git_patch \
 
 
 # --------------------------------------------------------------------
-# 006. kernel 7.2: fix WMI and i915 module paths
+# 006. x86 kernels: select the correct WMI module path
 # --------------------------------------------------------------------
 apply_git_patch \
     "." \
     "006-kernel72-wmi-module-path.patch" \
-    "kernel 7.2: fix WMI and i915 module paths" || true
+    "x86 kernels: select the correct WMI module path" || true
 
 #
 # 007. feed configuration recursion and netatop string API

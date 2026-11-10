@@ -50,7 +50,7 @@ endef
 
 define KernelPackage/acpi-video/x86
   KCONFIG+=CONFIG_ACPI_WMI
-  FILES+=$(LINUX_DIR)/drivers/platform/$(if $(CONFIG_LINUX_7_2),wmi,wmi/x86)/wmi.ko
+  FILES+=$(LINUX_DIR)/drivers/platform/$(if $(CONFIG_LINUX_7_2),wmi,x86)/wmi.ko
   AUTOLOAD:=$(call AutoProbe,wmi video)
 endef
 
