@@ -1,0 +1,15 @@
+diff --git a/utils/gummiboot/Makefile b/utils/gummiboot/Makefile
+index 5f2df43..cb5de0a 100644
+--- a/utils/gummiboot/Makefile
++++ b/utils/gummiboot/Makefile
+@@ -43,6 +43,10 @@ CONFIGURE_ARGS += \
+ 	--with-efi-includedir=$(STAGING_DIR)/usr/include \
+ 	--disable-manpages
+ 
++# Binutils no longer accepts the efi-app-x86_64 BFD target name.
++# PE/COFF with EFI application subsystem produces the same boot format.
++MAKE_FLAGS += FORMAT="-O pei-x86-64 --subsystem=efi-app"
++
+ define Build/Compile
+ 	+$(MAKE_VARS) EFI_CFLAGS="$(patsubst %,-I%,$(TOOLCHAIN_INC_DIRS)) $(TARGET_CFLAGS)" \
+ 	$(MAKE) $(PKG_JOBS) -C $(PKG_BUILD_DIR)/$(MAKE_PATH) \

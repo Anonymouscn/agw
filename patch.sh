@@ -493,6 +493,12 @@ apply_git_patch \
     "022-jool-pfring-kernel72.patch" \
     "jool/PF_RING: adapt Linux 7.2 kernel module interfaces" || true
 
+# 023. Binutils uses PE output plus EFI subsystem for x86 EFI binaries.
+apply_git_patch \
+    "feeds/packages" \
+    "023-gummiboot-pe-efi-format.patch" \
+    "gummiboot: emit PE EFI application with current binutils" || true
+
 #
 # Summary
 #
