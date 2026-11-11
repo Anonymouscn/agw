@@ -517,6 +517,18 @@ apply_git_patch \
     "026-baresip-ffmpeg-avopt.patch" \
     "baresip: set FFmpeg pixel format list via av_opt_set_bin" || true
 
+# 027. Kernel module string declaration and FFmpeg 9 codec removals.
+apply_git_patch \
+    "feeds/packages" \
+    "027-xtables-gst-ffmpeg9.patch" \
+    "xtables/gst-libav: fix kernel string and FFmpeg 9 codecs" || true
+
+# 028. Generated evdev codes must tolerate older toolchain UAPI headers.
+apply_git_patch \
+    "feeds/packages" \
+    "028-python-evdev-input-codes.patch" \
+    "python-evdev: guard input codes against target headers" || true
+
 #
 # Summary
 #
