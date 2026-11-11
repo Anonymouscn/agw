@@ -1,0 +1,40 @@
+diff --git a/frameworks/qt5/qt5base/Makefile b/frameworks/qt5/qt5base/Makefile
+--- a/frameworks/qt5/qt5base/Makefile
++++ b/frameworks/qt5/qt5base/Makefile
+@@ -31,9 +31,6 @@
+ # which actually depend on it. At the time of this writing, only qt5tools
+ # makes use of the host build.
+ HOST_BUILD_DEPENDS:=qt5base
+-
+-# hard disable udev support for now
+-CONFIG_PACKAGE_qt5base-input-autodiscovery:=
+ 
+ PKG_CONFIG_DEPENDS:= \
+ 	CONFIG_PACKAGE_qt5base-plugin-imageformats-jpeg \
+@@ -167,7 +164,7 @@
+ define Package/qt5base-plugin-input-libinput
+   $(call Package/qt5base/Default)
+   TITLE+=libinput (plugin)
+-  DEPENDS+=+qt5base-core +qt5base-gui +libinput
++  DEPENDS+=+qt5base-core +qt5base-gui +libinput +libudev
+ endef
+ 
+ define Package/qt5base-plugin-input-evdevkeyboard
+@@ -355,7 +352,7 @@
+ 			--glib=no \
+ 			--eventfd=no \
+ 			--inotify=$(if $(CONFIG_BUILD_qt5base-core_INOTIFY),yes,no) \
+-			--iconv=$(if $(CONFIG_BUILD_NLS),$(if $(CONFIG_LIBC_USE_GLIBC)$(CONFIG_LIBC_USE_MUSL),posix)$(if $(CONFIG_LIBC_USE_UCLIBC),gnu),no) \
++			--iconv=$(if $(CONFIG_PACKAGE_icu),no,$(if $(CONFIG_BUILD_NLS),$(if $(CONFIG_LIBC_USE_GLIBC)$(CONFIG_LIBC_USE_MUSL),posix)$(if $(CONFIG_LIBC_USE_UCLIBC),gnu),no)) \
+ 			--icu=$(if $(CONFIG_PACKAGE_icu),yes,no) \
+ 			--pcre=system \
+ 			--zlib=system \
+@@ -382,7 +379,7 @@
+ 			--kms=$(if $(CONFIG_BUILD_qt5base-gui_DRM),yes,no) \
+ 			--linuxfb=$(if $(CONFIG_PACKAGE_qt5base-plugin-platforms-linuxfb),yes,no) \
+ 			--xcb=no \
+-			--libudev=$(if $(CONFIG_PACKAGE_qt5base-input-autodiscovery),yes,no) \
++			--libudev=$(if $(CONFIG_PACKAGE_qt5base-input-autodiscovery)$(CONFIG_PACKAGE_qt5base-plugin-input-libinput),yes,no) \
+ 			--evdev=yes \
+ 			--libinput=$(if $(CONFIG_PACKAGE_qt5base-plugin-input-libinput),yes,no) \
+ 			--mtdev=no \

@@ -529,6 +529,12 @@ apply_git_patch \
     "028-python-evdev-input-codes.patch" \
     "python-evdev: guard input codes against target headers" || true
 
+# 029. Qt iconv conflicts with ICU and libinput requires udev.
+apply_git_patch \
+    "feeds/video" \
+    "029-qt5base-icu-libinput-config.patch" \
+    "qt5base: resolve ICU/iconv and libinput/udev configure dependencies" || true
+
 #
 # Summary
 #
