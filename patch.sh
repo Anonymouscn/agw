@@ -499,6 +499,12 @@ apply_git_patch \
     "023-gummiboot-pe-efi-format.patch" \
     "gummiboot: emit PE EFI application with current binutils" || true
 
+# 024. Docker daemon MIPS CGO and vendored BuildKit stat fields.
+apply_git_patch \
+    "feeds/packages" \
+    "024-dockerd-mips-cgo-and-stat.patch" \
+    "dockerd: disable MIPS16 CGO and normalize BuildKit stat field types" || true
+
 #
 # Summary
 #
