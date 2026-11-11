@@ -1,5 +1,7 @@
 diff --git a/net/baresip/patches/010-ffmpeg-avopt-pix-fmts.patch b/net/baresip/patches/010-ffmpeg-avopt-pix-fmts.patch
---- a/net/baresip/patches/010-ffmpeg-avopt-pix-fmts.patch
+new file mode 100644
+index 0000000..f733bc7
+--- /dev/null
 +++ b/net/baresip/patches/010-ffmpeg-avopt-pix-fmts.patch
 @@ -0,0 +1,19 @@
 +Subject: [PATCH] baresip: set FFmpeg pixel format list with av_opt_set_bin

@@ -1,5 +1,7 @@
 diff --git a/lang/python/python-evdev/patches/010-guard-kernel-input-codes.patch b/lang/python/python-evdev/patches/010-guard-kernel-input-codes.patch
---- a/lang/python/python-evdev/patches/010-guard-kernel-input-codes.patch
+new file mode 100644
+index 0000000..e0f0203
+--- /dev/null
 +++ b/lang/python/python-evdev/patches/010-guard-kernel-input-codes.patch
 @@ -0,0 +1,15 @@
 +Subject: [PATCH] evdev: guard generated input codes against toolchain headers

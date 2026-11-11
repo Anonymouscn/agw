@@ -34,7 +34,9 @@ diff --git a/net/rtorrent/Makefile b/net/rtorrent/Makefile
  endef
  
 diff --git a/sound/shairport-sync/patches/010-ffmpeg-codec-config.patch b/sound/shairport-sync/patches/010-ffmpeg-codec-config.patch
---- a/sound/shairport-sync/patches/010-ffmpeg-codec-config.patch
+new file mode 100644
+index 0000000..225cdda
+--- /dev/null
 +++ b/sound/shairport-sync/patches/010-ffmpeg-codec-config.patch
 @@ -0,0 +1,36 @@
 +Subject: [PATCH] shairport-sync: query FFmpeg decoder sample formats
