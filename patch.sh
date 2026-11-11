@@ -487,6 +487,12 @@ apply_git_patch \
     "021-ocserv-libwrap-severity.patch" \
     "ocserv: define libwrap severity values" || true
 
+# 022. Kernel 7.2 module API and exported symbol compatibility.
+apply_git_patch \
+    "feeds/packages" \
+    "022-jool-pfring-kernel72.patch" \
+    "jool/PF_RING: adapt Linux 7.2 kernel module interfaces" || true
+
 #
 # Summary
 #
