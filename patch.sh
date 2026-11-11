@@ -505,6 +505,18 @@ apply_git_patch \
     "024-dockerd-mips-cgo-and-stat.patch" \
     "dockerd: disable MIPS16 CGO and normalize BuildKit stat field types" || true
 
+# 025. Restore package dependencies and adapt FFmpeg 9 decoder query.
+apply_git_patch \
+    "feeds/packages" \
+    "025-common-package-build-fixes.patch" \
+    "ocserv/rtorrent/shairport-sync: fix library dependencies and FFmpeg 9 API" || true
+
+# 026. Baresip FFmpeg 9 removes the pixel format list helper.
+apply_git_patch \
+    "feeds/telephony" \
+    "026-baresip-ffmpeg-avopt.patch" \
+    "baresip: set FFmpeg pixel format list via av_opt_set_bin" || true
+
 #
 # Summary
 #
