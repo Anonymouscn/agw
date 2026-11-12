@@ -553,6 +553,18 @@ apply_git_patch \
     "032-freeswitch-mod-av-ffmpeg9.patch" \
     "freeswitch: adapt mod_av to FFmpeg 9" || true
 
+# 033. Linux 6.12 still provides hrtimer_init.
+apply_git_patch \
+    "feeds/telephony" \
+    "033-dahdi-hrtimer-version-guard.patch" \
+    "dahdi-linux: use hrtimer_setup only on Linux 6.18 and later" || true
+
+# 034. Retry transient crates.io transfer failures for eza.
+apply_git_patch \
+    "feeds/packages" \
+    "034-eza-cargo-network-retries.patch" \
+    "eza: retry crate downloads without HTTP/2 multiplexing" || true
+
 #
 # Summary
 #

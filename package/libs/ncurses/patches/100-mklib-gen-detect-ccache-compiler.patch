@@ -1,0 +1,16 @@
+--- a/ncurses/base/MKlib_gen.sh
++++ b/ncurses/base/MKlib_gen.sh
+@@ -83,6 +83,13 @@
+ #	https://gcc.gnu.org/gcc-5/porting_to.html
+ 
+ PRG=`echo "$1" | "$AWK" '{ sub(/^[ 	]*/,""); sub(/[ 	].*$/, ""); print; }' || exit 0`
++# OpenWrt invokes the preprocessor through ccache; inspect the wrapped
++# compiler so GCC line markers are suppressed with -P as intended.
++case "$PRG" in
++*/ccache|ccache)
++	PRG=`echo "$1" | "$AWK" '{ sub(/^[ 	]*[^ 	]+[ 	]+/,""); sub(/[ 	].*$/, ""); print; }' || exit 0`
++	;;
++esac
+ FSF=`("$PRG" --version 2>/dev/null || exit 0) | ${FGREP-grep -F} "Free Software Foundation" | head -n 1`
+ ALL=`"$PRG" -dumpversion 2>/dev/null || exit 0`
+ ONE=`echo "$ALL" | sed -e 's/[^0-9].*$//'`
