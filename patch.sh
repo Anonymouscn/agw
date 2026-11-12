@@ -535,6 +535,24 @@ apply_git_patch \
     "029-qt5base-icu-libinput-config.patch" \
     "qt5base: resolve ICU/iconv and libinput/udev configure dependencies" || true
 
+# 030. GZDoom links glib with external NLS libraries.
+apply_git_patch \
+    "feeds/video" \
+    "030-gzdoom-nls-link.patch" \
+    "gzdoom: add NLS dependencies and linker search path" || true
+
+# 031. WPE WebKit CMake needs quoted optional framework values.
+apply_git_patch \
+    "feeds/video" \
+    "031-wpewebkit-cmake-empty-framework.patch" \
+    "wpewebkit: quote optional framework names for CMake" || true
+
+# 032. FreeSWITCH mod_av needs FFmpeg 9 compatibility.
+apply_git_patch \
+    "feeds/telephony" \
+    "032-freeswitch-mod-av-ffmpeg9.patch" \
+    "freeswitch: adapt mod_av to FFmpeg 9" || true
+
 #
 # Summary
 #

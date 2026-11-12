@@ -1,0 +1,98 @@
+diff --git a/net/freeswitch/patches/494-mod-av-ffmpeg9.patch b/net/freeswitch/patches/494-mod-av-ffmpeg9.patch
+new file mode 100644
+--- /dev/null
++++ b/net/freeswitch/patches/494-mod-av-ffmpeg9.patch
+@@ -0,0 +1,93 @@
++--- a/src/mod/applications/mod_av/avformat.c
+++++ b/src/mod/applications/mod_av/avformat.c
++@@ -637,11 +637,13 @@
++ 		c->rc_initial_buffer_occupancy = buffer_bytes * 8;
++ 
++ 		if (codec_id == AV_CODEC_ID_H264) {
++-#if ((LIBAVFORMAT_VERSION_MAJOR == LIBAVFORMAT_6_V && LIBAVFORMAT_VERSION_MINOR >= LIBAVFORMAT_61_V) || LIBAVFORMAT_VERSION_MAJOR == LIBAVFORMAT_7_V)
+++#if ((LIBAVFORMAT_VERSION_MAJOR == LIBAVFORMAT_6_V && LIBAVFORMAT_VERSION_MINOR >= LIBAVFORMAT_61_V) || LIBAVFORMAT_VERSION_MAJOR >= LIBAVFORMAT_7_V)
++ GCC_DIAG_OFF(deprecated-declarations)
++ #endif
+++			#if LIBAVFORMAT_VERSION_MAJOR < 62
++ 			c->ticks_per_frame = 2;
++-#if ((LIBAVFORMAT_VERSION_MAJOR == LIBAVFORMAT_6_V && LIBAVFORMAT_VERSION_MINOR >= LIBAVFORMAT_61_V) || LIBAVFORMAT_VERSION_MAJOR == LIBAVFORMAT_7_V)
+++#endif
+++#if ((LIBAVFORMAT_VERSION_MAJOR == LIBAVFORMAT_6_V && LIBAVFORMAT_VERSION_MINOR >= LIBAVFORMAT_61_V) || LIBAVFORMAT_VERSION_MAJOR >= LIBAVFORMAT_7_V)
++ GCC_DIAG_ON(deprecated-declarations)
++ #endif
++ 
++@@ -1431,7 +1433,7 @@
++ 		switch_goto_status(SWITCH_STATUS_FALSE, err);
++ 	}
++ 
++-#if (LIBAVFORMAT_VERSION_MAJOR == LIBAVFORMAT_7_V)
+++#if (LIBAVFORMAT_VERSION_MAJOR >= LIBAVFORMAT_7_V)
++ 	handle->seekable = !(context->fc->iformat->flags & AVFMT_NOTIMESTAMPS);
++ #else
++ 	handle->seekable = context->fc->iformat->read_seek2 ? 1 : (context->fc->iformat->read_seek ? 1 : 0);
++@@ -3240,19 +3242,27 @@
++ 
++ 	if ((c = av_get_codec_context(mst)) && c->time_base.num) {
++ 		cp = av_stream_get_parser(st);
++-#if ((LIBAVFORMAT_VERSION_MAJOR == LIBAVFORMAT_6_V && LIBAVFORMAT_VERSION_MINOR >= LIBAVFORMAT_61_V) || LIBAVFORMAT_VERSION_MAJOR == LIBAVFORMAT_7_V)
+++#if ((LIBAVFORMAT_VERSION_MAJOR == LIBAVFORMAT_6_V && LIBAVFORMAT_VERSION_MINOR >= LIBAVFORMAT_61_V) || LIBAVFORMAT_VERSION_MAJOR >= LIBAVFORMAT_7_V)
++ GCC_DIAG_OFF(deprecated-declarations)
++ #endif
+++		#if LIBAVFORMAT_VERSION_MAJOR >= 62
+++		ticks = cp ? cp->repeat_pict + 1 : 1;
+++#else
++ 		ticks = cp ? cp->repeat_pict + 1 : c->ticks_per_frame;
+++#endif
++ 		// mst->next_pts += ((int64_t)AV_TIME_BASE * st->codec->time_base.num * ticks) / st->codec->time_base.den;
++ 	}
++ 
++ 	if (!context->video_start_time) {
++ 		switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_DEBUG1, "start: %" SWITCH_INT64_T_FMT " ticks: %d ticks_per_frame: %d st num:%d st den:%d codec num:%d codec den:%d start: %" SWITCH_TIME_T_FMT ", duration:%" SWITCH_INT64_T_FMT " nb_frames:%" SWITCH_INT64_T_FMT " q2d:%f\n",
++-			context->video_start_time, ticks, c ? c->ticks_per_frame : -1, st->time_base.num, st->time_base.den, c ? c->time_base.num : -1, c ? c->time_base.den : -1,
+++			context->video_start_time, ticks, #if LIBAVFORMAT_VERSION_MAJOR >= 62
+++			1, st->time_base.num
+++#else
+++			c ? c->ticks_per_frame : -1, st->time_base.num
+++#endif, st->time_base.den, c ? c->time_base.num : -1, c ? c->time_base.den : -1,
++ 			st->start_time, st->duration == AV_NOPTS_VALUE ? context->fc->duration / AV_TIME_BASE * 1000 : st->duration, st->nb_frames, av_q2d(st->time_base));
++ 	}
++-#if ((LIBAVFORMAT_VERSION_MAJOR == LIBAVFORMAT_6_V && LIBAVFORMAT_VERSION_MINOR >= LIBAVFORMAT_61_V) || LIBAVFORMAT_VERSION_MAJOR == LIBAVFORMAT_7_V)
+++#if ((LIBAVFORMAT_VERSION_MAJOR == LIBAVFORMAT_6_V && LIBAVFORMAT_VERSION_MINOR >= LIBAVFORMAT_61_V) || LIBAVFORMAT_VERSION_MAJOR >= LIBAVFORMAT_7_V)
++ GCC_DIAG_ON(deprecated-declarations)
++ #endif
++ 
++--- a/src/mod/applications/mod_av/avcodec.c
+++++ b/src/mod/applications/mod_av/avcodec.c
++@@ -530,7 +530,7 @@
++ 	aprofile->decoder_thread_count = avcodec_globals.dec_threads;
++ 
++ 	if (!strcasecmp(name, "H264")) {
++-		aprofile->ctx.profile = FF_PROFILE_H264_BASELINE;
+++		aprofile->ctx.profile = AV_PROFILE_H264_BASELINE;
++ 		aprofile->ctx.level = 31;
++ #ifdef AV_CODEC_FLAG_PSNR
++ 		aprofile->ctx.flags |= AV_CODEC_FLAG_PSNR;
++@@ -2071,7 +2071,7 @@
++ 
++ 	ctx = &aprofile->ctx;
++ 
++-	ctx->profile = FF_PROFILE_H264_BASELINE;
+++	ctx->profile = AV_PROFILE_H264_BASELINE;
++ 	ctx->level = 31;
++ 
++ 	for (param = switch_xml_child(profile, "param"); param; param = param->next) {
++@@ -2094,11 +2094,11 @@
++ 
++ 			if (ctx->profile == 0 && !strcasecmp(aprofile->name, "H264")) {
++ 				if (!strcasecmp(value, "baseline")) {
++-					ctx->profile = FF_PROFILE_H264_BASELINE;
+++					ctx->profile = AV_PROFILE_H264_BASELINE;
++ 				} else if (!strcasecmp(value, "main")) {
++-					ctx->profile = FF_PROFILE_H264_MAIN;
+++					ctx->profile = AV_PROFILE_H264_MAIN;
++ 				} else if (!strcasecmp(value, "high")) {
++-					ctx->profile = FF_PROFILE_H264_HIGH;
+++					ctx->profile = AV_PROFILE_H264_HIGH;
++ 				}
++ 			}
++ 		} else if (!strcmp(name, "level")) {

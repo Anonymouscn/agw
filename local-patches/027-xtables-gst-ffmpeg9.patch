@@ -1,10 +1,12 @@
 diff --git a/net/xtables-addons/patches/700-quota2-linux-string.patch b/net/xtables-addons/patches/700-quota2-linux-string.patch
 new file mode 100644
-index 0000000..a5ae6b8
+index 0000000..dae9773
 --- /dev/null
 +++ b/net/xtables-addons/patches/700-quota2-linux-string.patch
-@@ -0,0 +1,12 @@
-+Subject: [PATCH] xtables-addons: declare strncpy for quota2 kernel module
+@@ -0,0 +1,23 @@
++Subject: [PATCH] xtables-addons: use kernel strscpy for quota2 counter names
++
++Linux 7.2 no longer declares strncpy in linux/string.h.
 +
 +--- a/extensions/xt_quota2.c
 ++++ b/extensions/xt_quota2.c
@@ -16,6 +18,15 @@ index 0000000..a5ae6b8
 + #include <linux/uidgid.h>
 + #include <linux/version.h>
 + #include <asm/atomic.h>
++@@ -142,7 +143,7 @@
++ 	if (!anon) {
++ 		INIT_LIST_HEAD(&e->list);
++ 		atomic_set(&e->ref, 1);
++-		strncpy(e->name, q->name, sizeof(e->name));
+++		strscpy(e->name, q->name, sizeof(e->name));
++ 	}
++ 	return e;
++ }
 diff --git a/multimedia/gst1-libav/patches/010-ffmpeg9-removed-codecs.patch b/multimedia/gst1-libav/patches/010-ffmpeg9-removed-codecs.patch
 new file mode 100644
 index 0000000..44359d6
