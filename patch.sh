@@ -565,6 +565,12 @@ apply_git_patch \
     "034-eza-cargo-network-retries.patch" \
     "eza: retry crate downloads without HTTP/2 multiplexing" || true
 
+# 035. Go linux/powerpc does not support PIE buildmode.
+apply_git_patch \
+    "feeds/packages" \
+    "035-containerd-disable-pie-powerpc.patch" \
+    "containerd: disable PIE on 32-bit PowerPC" || true
+
 #
 # Summary
 #
