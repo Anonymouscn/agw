@@ -68,13 +68,18 @@ job_timeout=${timeout_override:-${ACT_REGRESSION_JOB_TIMEOUT:-$default_timeout}}
 memory=${ACT_KERNEL_MEMORY:-$default_memory}
 parallel=${parallel_override:-${ACT_KERNEL_PARALLEL:-$default_parallel}}
 cpu_overcommit=${ACT_KERNEL_CPU_OVERCOMMIT:-1}
-disk_per_lane_gib=${ACT_KERNEL_DISK_PER_LANE_GIB:-24}
+if [[ $scope = kernel ]]; then default_disk_per_lane_gib=24; else default_disk_per_lane_gib=192; fi
+disk_per_lane_gib=${ACT_KERNEL_DISK_PER_LANE_GIB:-$default_disk_per_lane_gib}
 [[ $jobs =~ ^[1-9][0-9]*$ && $memory =~ ^[1-9][0-9]*[gm]$ ]]
 [[ $tools_jobs =~ ^[1-9][0-9]*$ ]]
 (( tools_jobs <= $(nproc) ))
 { [[ $parallel =~ ^[1-9][0-9]*$ ]] && (( parallel <= 16 )); } || { echo 'Parallel lanes must be between 1 and 16' >&2; exit 2; }
 [[ $cpu_overcommit =~ ^[1-9][0-9]*$ && $disk_per_lane_gib =~ ^[1-9][0-9]*$ ]]
 (( cpu_overcommit <= 3 ))
+if [[ $scope != kernel ]] && (( disk_per_lane_gib < 128 )); then
+    echo "Full package and firmware builds require at least 128 GiB disk reservation per active lane" >&2
+    exit 2
+fi
 [[ $cpu_mode = elastic || $cpu_mode = quota ]]
 [[ $prefetch =~ ^[1-4]$ ]]
 if (( jobs > $(nproc) )) || { [[ $cpu_mode = quota ]] && (( jobs * parallel > $(nproc) * cpu_overcommit )); }; then
@@ -446,12 +451,12 @@ while IFS=$'\t' read -r key target version testing release; do
     fi
     free_kb=$(df -Pk "$work_base" | awk 'NR==2 {print $4}')
     reserve_kb=52428800
-    if [[ $scope != kernel ]]; then reserve_kb=$((83886080 + ${#active[@]} * disk_per_lane_gib * 1048576)); fi
+    if [[ $scope != kernel ]]; then reserve_kb=$((83886080 + (${#active[@]} + 1) * disk_per_lane_gib * 1048576)); fi
     if (( free_kb < reserve_kb )); then
         while (( ${#active[@]} > 0 && free_kb < reserve_kb )); do
             if ! regression_reap_ready; then sleep 2; fi
             free_kb=$(df -Pk "$work_base" | awk 'NR==2 {print $4}')
-            if [[ $scope != kernel ]]; then reserve_kb=$((83886080 + ${#active[@]} * disk_per_lane_gib * 1048576)); fi
+            if [[ $scope != kernel ]]; then reserve_kb=$((83886080 + (${#active[@]} + 1) * disk_per_lane_gib * 1048576)); fi
         done
         free_kb=$(df -Pk "$work_base" | awk 'NR==2 {print $4}')
         # Keep diagnostics; reclaim failed generated trees before blocking the matrix.
