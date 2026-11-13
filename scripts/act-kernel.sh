@@ -154,7 +154,7 @@ fi
 else
     test -f "$log_root/matrix.tsv"
     test -d "$run_root/source/.git"
-    rm -f "$log_root/CANCELLED"
+    rm -f "$log_root/CANCELLED" "$log_root/DISK_LOW"
 fi
 printf '%s\n' "$run_id" > "$latest_run_file"
 printf 'RUNNING\n' > "$log_root/state"
@@ -231,7 +231,7 @@ prefetch_images() (
 )
 prefetch_images > "$log_root/prefetch.log" 2>&1 &
 prefetch_pid=$!
-trap 'kill -TERM "$prefetch_pid" 2>/dev/null || true; wait "$prefetch_pid" 2>/dev/null || true' EXIT
+trap 'kill -TERM "$prefetch_pid" 2>/dev/null || true; wait "$prefetch_pid" 2>/dev/null || true; if [[ -n ${disk_guard_pid:-} ]]; then kill -TERM "$disk_guard_pid" 2>/dev/null || true; wait "$disk_guard_pid" 2>/dev/null || true; fi' EXIT
 run_job() (
     set -euo pipefail
     key=$1 target=$2 version=$3 testing=$4 release=$5
@@ -424,14 +424,35 @@ cancel() {
     trap - INT TERM
     touch "$log_root/CANCELLED"
     kill -TERM "$prefetch_pid" 2>/dev/null || true
+    if [[ -n ${disk_guard_pid:-} ]]; then kill -TERM "$disk_guard_pid" 2>/dev/null || true; fi
     docker ps -q --filter "label=agw.act.batch=$run_id" | xargs -r docker stop -t 10 >/dev/null || true
     for pid in "${!active[@]}"; do kill -TERM "$pid" 2>/dev/null || true; done
     wait || true
     write_summary
-    printf 'CANCELLED\n' > "$log_root/state"
+    if test -f "$log_root/DISK_LOW"; then
+        printf 'STOPPED_DISK\n' > "$log_root/state"
+    else
+        printf 'CANCELLED\n' > "$log_root/state"
+    fi
     exit 143
 }
 trap cancel INT TERM
+disk_guard_pid=
+if [[ $scope != kernel ]]; then
+    queue_pid=$BASHPID
+    (
+        while sleep 15; do
+            free_kb=$(df -Pk "$work_base" | awk 'NR==2 {print $4}')
+            if (( free_kb < 83886080 )); then
+                printf 'Available disk fell below 80 GiB; stopping active package builds.\n' > "$log_root/disk-low.txt"
+                touch "$log_root/DISK_LOW"
+                kill -TERM "$queue_pid"
+                break
+            fi
+        done
+    ) &
+    disk_guard_pid=$!
+fi
 while IFS=$'\t' read -r key target version testing release; do
     [[ $key != key ]] || continue
     if test -f "$log_root/DRAIN"; then break; fi
