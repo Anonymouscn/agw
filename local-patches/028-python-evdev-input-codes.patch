@@ -1,0 +1,21 @@
+diff --git a/lang/python/python-evdev/patches/010-guard-kernel-input-codes.patch b/lang/python/python-evdev/patches/010-guard-kernel-input-codes.patch
+new file mode 100644
+index 0000000..e0f0203
+--- /dev/null
++++ b/lang/python/python-evdev/patches/010-guard-kernel-input-codes.patch
+@@ -0,0 +1,15 @@
++Subject: [PATCH] evdev: guard generated input codes against toolchain headers
++
++Kernel source may expose newer input codes than cross toolchain UAPI headers.
++
++--- a/src/evdev/genecodes_c.py
+++++ b/src/evdev/genecodes_c.py
++@@ -136,7 +136,7 @@
++ 
++ # pylint: disable=possibly-used-before-assignment, used-before-assignment
++ if ("--ecodes", "") in opts:
++-    body = ("    PyModule_AddIntMacro(m, %s);" % macro for macro in all_macros)
+++    body = ("#ifdef %s\n    PyModule_AddIntMacro(m, %s);\n#endif" % (macro, macro) for macro in all_macros)
++     template = template_ecodes
++ elif ("--stubs", "") in opts:
++     body = ("%s: int" % macro for macro in all_macros)

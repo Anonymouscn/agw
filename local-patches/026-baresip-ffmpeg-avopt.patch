@@ -1,0 +1,25 @@
+diff --git a/net/baresip/patches/010-ffmpeg-avopt-pix-fmts.patch b/net/baresip/patches/010-ffmpeg-avopt-pix-fmts.patch
+new file mode 100644
+index 0000000..f733bc7
+--- /dev/null
++++ b/net/baresip/patches/010-ffmpeg-avopt-pix-fmts.patch
+@@ -0,0 +1,19 @@
++Subject: [PATCH] baresip: set FFmpeg pixel format list with av_opt_set_bin
++
++FFmpeg 9 removes av_opt_set_int_list; one pixel format is supplied.
++
++--- a/modules/avfilter/filter.c
+++++ b/modules/avfilter/filter.c
++@@ -68,9 +68,9 @@
++ 		goto end;
++ 	}
++ 
++-	err = av_opt_set_int_list(
++-		st->buffersink_ctx, "pix_fmts", pix_fmts, AV_PIX_FMT_NONE,
++-		AV_OPT_SEARCH_CHILDREN);
+++	err = av_opt_set_bin(
+++		st->buffersink_ctx, "pix_fmts", (const uint8_t *)pix_fmts,
+++		sizeof(pix_fmts[0]), AV_OPT_SEARCH_CHILDREN);
++ 	if (err < 0) {
++ 		warning("avfilter: cannot set output pixel format\n");
++ 		goto end;

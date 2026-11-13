@@ -1,0 +1,13 @@
+diff --git a/mail/postfix/Makefile b/mail/postfix/Makefile
+index 363b45f..04445e9 100644
+--- a/mail/postfix/Makefile
++++ b/mail/postfix/Makefile
+@@ -219,7 +219,7 @@ define Build/Configure
+ 		echo "Build error: CDB or BerkeleyDB support must be enabled."; \
+ 		exit 1; \
+ 	fi
+-	cd $(PKG_BUILD_DIR); $(MAKE) makefiles CCARGS='$(CCARGS)' $(TARGET_CONFIGURE_OPTS) AUXLIBS="$(AUXLIBS)"
++	cd $(PKG_BUILD_DIR); env -u LD_LIBRARY_PATH $(MAKE) makefiles CCARGS='$(CCARGS)' $(TARGET_CONFIGURE_OPTS) AUXLIBS="$(AUXLIBS)"
+ endef
+ 
+ define Build/Compile

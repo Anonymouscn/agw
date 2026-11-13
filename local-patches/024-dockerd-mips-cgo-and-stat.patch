@@ -1,0 +1,41 @@
+diff --git a/utils/dockerd/Makefile b/utils/dockerd/Makefile
+index 884fb36..78a0074 100644
+--- a/utils/dockerd/Makefile
++++ b/utils/dockerd/Makefile
+@@ -18,6 +18,7 @@ PKG_MAINTAINER:=Gerard Ryan <G.M0N3Y.2503@gmail.com>
+ 
+ PKG_BUILD_DEPENDS:=golang/host
+ PKG_BUILD_PARALLEL:=1
++PKG_BUILD_FLAGS:=no-mips16
+ 
+ GO_PKG:=github.com/docker/docker
+ 
+diff --git a/utils/dockerd/patches/100-buildkit-mips-stat-fields.patch b/utils/dockerd/patches/100-buildkit-mips-stat-fields.patch
+new file mode 100644
+index 0000000..9e1083d
+--- /dev/null
++++ b/utils/dockerd/patches/100-buildkit-mips-stat-fields.patch
+@@ -0,0 +1,23 @@
++From: AGW regression fixes <noreply@local>
++Subject: [PATCH] buildkit: use architecture-neutral device field types
++
++--- a/vendor/github.com/moby/buildkit/snapshot/diffapply_linux.go
+++++ b/vendor/github.com/moby/buildkit/snapshot/diffapply_linux.go
++@@ -125,7 +125,7 @@
++ 	}
++ 	return inode{
++ 		ino: stat.Ino,
++-		dev: stat.Dev,
+++		dev: uint64(stat.Dev),
++ 	}
++ }
++ 
++@@ -294,7 +294,7 @@
++ 			if ca.srcStat == nil {
++ 				ca.srcStat = &syscall.Stat_t{
++ 					Mode: syscall.S_IFCHR,
++-					Rdev: unix.Mkdev(0, 0),
+++					Rdev: 0,
++ 				}
++ 				ca.srcPath = ""
++ 			}

@@ -1,0 +1,17 @@
+diff --git a/libs/dahdi-linux/patches/210-kernel-h-Add-wrappers-for.patch b/libs/dahdi-linux/patches/210-kernel-h-Add-wrappers-for.patch
+index b10d260..c3cf0bf 100644
+--- a/libs/dahdi-linux/patches/210-kernel-h-Add-wrappers-for.patch
++++ b/libs/dahdi-linux/patches/210-kernel-h-Add-wrappers-for.patch
+@@ -20,10 +20,10 @@
+  #include <linux/pci.h>
+  #include <linux/dma-mapping.h>
+  
+-+/* DAHDI expects hrtimer_init(), but kernels >= 6.8 removed it.
+++/* DAHDI expects hrtimer_init(), but kernels >= 6.18 removed it.
+ + * Recreate it using the modern hrtimer_setup() API.
+ + */
+-+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 8, 0)
+++#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 18, 0)
+ +static inline void hrtimer_init(struct hrtimer *timer,
+ +                                clockid_t clock_id,
+ +                                enum hrtimer_mode mode)

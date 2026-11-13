@@ -1,0 +1,38 @@
+diff --git a/net/meshtasticd/Makefile b/net/meshtasticd/Makefile
+index 8e796bc..f06ae55 100644
+--- a/net/meshtasticd/Makefile
++++ b/net/meshtasticd/Makefile
+@@ -5,7 +5,7 @@ include $(TOPDIR)/rules.mk
+ PKG_NAME:=meshtasticd
+ PKG_VERSION:=2.7.15
+ PKG_SOURCE_VERSION:=v$(PKG_VERSION).567b8ea
+-PKG_RELEASE:=2
++PKG_RELEASE:=4
+ 
+ PKG_BUILD_DIR:=$(BUILD_DIR)/$(PKG_NAME)-$(PKG_VERSION)
+ PKG_SOURCE_PROTO:=git
+@@ -52,6 +52,7 @@ define Package/meshtasticd-full
+     +libi2c \
+     +libopenssl \
+     +liborcania \
++    +libsdl2-compat \
+     +libulfius-gnutls \
+     +libusb-1.0 \
+     +libuv \
+@@ -101,14 +102,14 @@ PLATFORMIO_BUILD_FLAGS := \
+ 	-fdata-sections \
+ 	-ffunction-sections \
+ 	-Os \
+-	-Wl,--gc-sections \
+ 	-lcrypto \
+ 	-lorcania \
++	-lSDL2 \
+ 	-lssl \
+ 	-lulfius \
+ 	-lyder \
+ 	$(if $(CONFIG_USE_GLIBC),,-largp) \
+-	$(if $(INTL_FULL),-lintl)
++	$(if $(INTL_FULL),-L$(INTL_PREFIX)/lib -lintl)
+ 
+ BUILD_FLAGS := \
+ 	TARGET_AR="$(TARGET_AR)" \

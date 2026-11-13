@@ -231,7 +231,7 @@ define DownloadMethod/rawgit
 	rm -rf $(SUBDIR) && mkdir $(SUBDIR) && \
 	$(TAR) -C $(SUBDIR) -xf $(SUBDIR).tar.git && \
 	(cd $(SUBDIR) && $(if $(filter skip,$(SUBMODULES)),true,git submodule update --init --recursive -- $(SUBMODULES) && \
-	rm -rf .git .gitmodules)) && \
+	find . \( -name .git -o -name .gitmodules \) -prune -exec rm -rf {} +)) && \
 	echo "Packing checkout..." && \
 	$(call dl_tar_pack,$(TMP_DIR)/dl/$(FILE),$(SUBDIR)) && \
 	mv $(TMP_DIR)/dl/$(FILE) $(DL_DIR)/ && \
@@ -340,12 +340,12 @@ define Download
   download: $(DL_DIR)/$(FILE)
 
   $(DL_DIR)/$(FILE):
-	mkdir -p $(DL_DIR)
+	mkdir -p $(DL_DIR)/.locks
 	$(call locked, \
 		$(if $(DownloadMethod/$(call dl_method,$(URL),$(PROTO))), \
 			$(call DownloadMethod/$(call dl_method,$(URL),$(PROTO)),check,$(if $(filter default,$(1)),PKG_,Download/$(1):)), \
 			$(DownloadMethod/unknown) \
 		),\
-		$(FILE))
+		$(FILE),$(DL_DIR)/.locks)
 
 endef

@@ -175,7 +175,123 @@ apply_git_patch() {
 }
 
 
+# Fetch the current simple-obfs archive and keep its mirror hash in sync.
+# The archive hash belongs to the generated source tarball, not the Git commit.
+update_simple_obfs_hash() {
+    local repo_abs="${ROOT}/feeds/helloworld"
+    local pkg_makefile="${repo_abs}/simple-obfs/Makefile"
+    local patch_abs="${PATCH_DIR}/001-simple-obfs-fix-mirror-hash.patch"
+    local pkg_name pkg_version archive current_hash new_hash
+
+    echo
+    info "simple-obfs: update PKG_MIRROR_HASH from current source archive"
+    info "Repository : ${repo_abs}"
+    info "Patch      : ${patch_abs}"
+
+    if [[ ! -f "${pkg_makefile}" ]]; then
+        err "simple-obfs Makefile does not exist: ${pkg_makefile}"
+        FAILED=$((FAILED + 1))
+        return 1
+    fi
+
+    pkg_name="$(sed -n 's/^PKG_NAME:=//p' "${pkg_makefile}")"
+    pkg_version="$(sed -n 's/^PKG_VERSION:=//p' "${pkg_makefile}")"
+    archive="${ROOT}/dl/${pkg_name}-${pkg_version}.tar.xz"
+
+    if [[ ! -f "${archive}" ]]; then
+        info "Downloading current ${pkg_name}-${pkg_version}.tar.xz with hash verification disabled"
+        if ! make -s -C "${ROOT}" package/feeds/helloworld/simple-obfs/download PKG_MIRROR_HASH=skip >"/tmp/simple-obfs-dynamic-download.log" 2>&1; then
+            err "Unable to download current simple-obfs source archive. See /tmp/simple-obfs-dynamic-download.log"
+            FAILED=$((FAILED + 1))
+            return 1
+        fi
+    else
+        info "Using cached ${pkg_name}-${pkg_version}.tar.xz to refresh the hash"
+    fi
+
+    if [[ ! -f "${archive}" ]]; then
+        err "Downloaded archive not found: ${archive}"
+        FAILED=$((FAILED + 1))
+        return 1
+    fi
+
+    current_hash="$(sed -n 's/^PKG_MIRROR_HASH:=//p' "${pkg_makefile}")"
+    new_hash="$(sha256sum "${archive}" | awk '{print $1}')"
+
+    if [[ "${current_hash}" == "${new_hash}" ]]; then
+        ok "PKG_MIRROR_HASH is current: ${new_hash}"
+        SKIPPED=$((SKIPPED + 1))
+        return 0
+    fi
+
+    sed -i -E "s|^PKG_MIRROR_HASH:=.*$|PKG_MIRROR_HASH:=${new_hash}|" "${pkg_makefile}"
+
+    # Keep the patch as an audit/replay artifact, based on the feed's current HEAD.
+    git -C "${repo_abs}" diff --no-ext-diff -- simple-obfs/Makefile >"${patch_abs}"
+    if [[ ! -s "${patch_abs}" ]]; then
+        err "Hash changed but no Git diff was generated for simple-obfs"
+        FAILED=$((FAILED + 1))
+        return 1
+    fi
+
+    ok "Updated PKG_MIRROR_HASH: ${current_hash} -> ${new_hash}"
+    APPLIED=$((APPLIED + 1))
+    return 0
+}
+
+
 #
+
+# Synchronize perf settings semantically so stale patch context cannot fail.
+update_perf_makefile() {
+    local makefile="${ROOT}/package/devel/perf/Makefile"
+    local patch_abs="${PATCH_DIR}/002-perf-zstd-no-llvm.patch"
+    local before after
+    echo
+    info "perf: synchronize dependency and linker settings"
+    info "Repository : ${ROOT}"
+    info "Patch      : ${patch_abs}"
+    if [[ ! -f "${makefile}" ]]; then
+        err "perf Makefile does not exist: ${makefile}"
+        FAILED=$((FAILED + 1))
+        return 1
+    fi
+    before="$(sha256sum "${makefile}" | awk '{print $1}')"
+    python3 - "${makefile}" <<'PY'
+import re, sys
+from pathlib import Path
+p=Path(sys.argv[1])
+s=p.read_text()
+if not re.search(r"(?m)^  DEPENDS:=.*\+libzstd(?:\s|$)", s):
+    s,n=re.subn(r"(?m)^  DEPENDS:= \+libelf \+libdw ", "  DEPENDS:= +libelf +libdw +libzstd ", s, count=1)
+    if n != 1: raise SystemExit("cannot locate perf DEPENDS line")
+if "TARGET_LDFLAGS += $(INTL_LDFLAGS) -fuse-ld=bfd" not in s:
+    s,n=re.subn(r"(?m)^TARGET_LDFLAGS += \$\(INTL_LDFLAGS\)$", "TARGET_LDFLAGS += $(INTL_LDFLAGS) -fuse-ld=bfd", s, count=1)
+    if n == 0:
+        a="HOST_CFLAGS += -I$(LINUX_DIR)/tools/include\n"
+        if a not in s: raise SystemExit("cannot locate perf linker flag anchor")
+        s=s.replace(a, a+"\nTARGET_LDFLAGS += $(INTL_LDFLAGS) -fuse-ld=bfd\n", 1)
+# NO_LIBLLVM and NO_RUST are maintained in the Makefile; do not reinsert them here.
+s=re.sub(r"(?m)^\s*NO_LIBZSTD=1\s*\\\\\n", "", s)
+p.write_text(s)
+PY
+    after="$(sha256sum "${makefile}" | awk '{print $1}')"
+    if [[ "${before}" == "${after}" ]]; then
+        ok "Already synchronized; preserved patch: perf"
+        SKIPPED=$((SKIPPED + 1))
+    else
+        git -C "${ROOT}" diff --no-ext-diff -- package/devel/perf/Makefile > "${patch_abs}"
+        if [[ ! -s "${patch_abs}" ]]; then
+            err "Generated perf patch is empty: ${patch_abs}"
+            FAILED=$((FAILED + 1))
+            return 1
+        fi
+        printf "%s perf Makefile synchronized; patch regenerated: %s\n" "$(date -u +%FT%TZ)" "${patch_abs}" >> /tmp/openwrt-patch-changes.log
+        ok "Synchronized and regenerated patch: perf"
+        APPLIED=$((APPLIED + 1))
+    fi
+}
+
 # Header
 #
 echo
@@ -196,10 +312,7 @@ info "Patch dir   : ${PATCH_DIR}"
 # Modification:
 #   Fix PKG_MIRROR_HASH
 #
-apply_git_patch \
-    "feeds/helloworld" \
-    "001-simple-obfs-fix-mirror-hash.patch" \
-    "simple-obfs: update PKG_MIRROR_HASH" || true
+update_simple_obfs_hash || true
 
 
 #
@@ -213,10 +326,7 @@ apply_git_patch \
 #   Remove NO_LIBZSTD
 #   Disable LLVM linkage
 #
-apply_git_patch \
-    "." \
-    "002-perf-zstd-no-llvm.patch" \
-    "perf: enable libzstd dependency and disable LLVM linkage" || true
+update_perf_makefile || true
 
 
 #
@@ -262,6 +372,210 @@ apply_git_patch \
     "feeds/packages" \
     "005-speedtest-go-limit-build-target.patch" \
     "speedtest-go: limit Go package build target" || true
+
+
+# --------------------------------------------------------------------
+# 006. x86 kernels: select the correct WMI module path
+# --------------------------------------------------------------------
+apply_git_patch \
+    "." \
+    "006-kernel72-wmi-module-path.patch" \
+    "x86 kernels: select the correct WMI module path" || true
+
+#
+# 007. feed configuration recursion and netatop string API
+# --------------------------------------------------------------------
+apply_git_patch \
+    "feeds/packages" \
+    "007-feed-config-and-netatop.patch" \
+    "feeds: fix LibreSpeed/squeezelite configuration and netatop API" || true
+
+#
+# 008. luci.mk already invokes BuildPackage for RustDesk
+# --------------------------------------------------------------------
+apply_git_patch \
+    "feeds/luci" \
+    "008-luci-rustdesk-single-buildpackage.patch" \
+    "luci: avoid duplicate RustDesk package definition" || true
+
+#
+# 009. Postfix Linux 7 platform detection and definitions
+# --------------------------------------------------------------------
+apply_git_patch \
+    "feeds/packages" \
+    "009-postfix-linux7-platform.patch" \
+    "postfix: complete Linux 7 platform support" || true
+
+#
+# 010. Runtime package cross-compilation compatibility
+# --------------------------------------------------------------------
+apply_git_patch \
+    "feeds/packages" \
+    "010-runtime-cross-build.patch" \
+    "runtime packages: MIPS cgo and QEMU architecture compatibility" || true
+
+#
+# 011. xmlrpc-c: avoid recursive shared-library link races
+# --------------------------------------------------------------------
+apply_git_patch \
+    "feeds/packages" \
+    "011-xmlrpc-c-serialize-recursive-build.patch" \
+    "xmlrpc-c: serialize recursive shared-library builds" || true
+
+#
+# 012. shadowsocks-libev current source archive hash
+# --------------------------------------------------------------------
+apply_git_patch \
+    "feeds/helloworld" \
+    "012-shadowsocks-libev-fix-mirror-hash.patch" \
+    "shadowsocks-libev: refresh mirror hash from current source archive" || true
+
+#
+# 013. GN host linking with clang/libc++
+# --------------------------------------------------------------------
+apply_git_patch \
+    "feeds/helloworld" \
+    "013-gn-clang-libcpp-static-link.patch" \
+    "gn: avoid incompatible static-libstdc++ flag with clang/libc++" || true
+
+# 014. Mesa must use the shared host packaging package. Its pinned pip
+# requirement downgrades packaging and breaks python-anyio/vcs-versioning.
+apply_git_patch \
+    "feeds/video" \
+    "014-mesa-use-host-python-packaging.patch" \
+    "mesa: keep host Python packaging version consistent" || true
+
+# 015. Use executable compiler names for Cargo and GCC target libgcc.
+apply_git_patch \
+    "feeds/packages" \
+    "015-fish-cargo-and-gcc-target-cc.patch" \
+    "fish/GCC: avoid invalid cross-compiler wrapper and Cargo linker names" || true
+
+# 016. Supply libintl build dependencies and linker search paths.
+apply_git_patch \
+    "feeds/packages" \
+    "016-build-nls-link-paths.patch" \
+    "NLS: stage and link libintl for affected packages" || true
+
+# 017. Postfix rejects LD_LIBRARY_PATH during makedefs.
+apply_git_patch \
+    "feeds/packages" \
+    "017-postfix-unset-ld-library-path.patch" \
+    "postfix: clear LD_LIBRARY_PATH during configuration" || true
+
+# 018. rtorrent configure must see a single compiler executable.
+apply_git_patch \
+    "feeds/packages" \
+    "018-rtorrent-cxx-no-ccache.patch" \
+    "rtorrent: use executable C++ compiler in C++17 probe" || true
+
+# 019. Chromium Python generators must parse on Python 3.9.
+apply_git_patch \
+    "feeds/helloworld" \
+    "019-naiveproxy-python39-annotations.patch" \
+    "naiveproxy: defer Python type annotations" || true
+
+# 020. PlatformIO splits comma linker options passed as build flags.
+apply_git_patch \
+    "feeds/packages" \
+    "020-meshtasticd-platformio-link-flags.patch" \
+    "meshtasticd: omit malformed linker flags from PlatformIO compile flags" || true
+
+# 021. libwrap requires severity storage in each ocserv executable.
+apply_git_patch \
+    "feeds/packages" \
+    "021-ocserv-libwrap-severity.patch" \
+    "ocserv: define libwrap severity values" || true
+
+# 022. Kernel 7.2 module API and exported symbol compatibility.
+apply_git_patch \
+    "feeds/packages" \
+    "022-jool-pfring-kernel72.patch" \
+    "jool/PF_RING: adapt Linux 7.2 kernel module interfaces" || true
+
+# 023. Binutils uses PE output plus EFI subsystem for x86 EFI binaries.
+apply_git_patch \
+    "feeds/packages" \
+    "023-gummiboot-pe-efi-format.patch" \
+    "gummiboot: emit PE EFI application with current binutils" || true
+
+# 024. Docker daemon MIPS CGO and vendored BuildKit stat fields.
+apply_git_patch \
+    "feeds/packages" \
+    "024-dockerd-mips-cgo-and-stat.patch" \
+    "dockerd: disable MIPS16 CGO and normalize BuildKit stat field types" || true
+
+# 025. Restore package dependencies and adapt FFmpeg 9 decoder query.
+apply_git_patch \
+    "feeds/packages" \
+    "025-common-package-build-fixes.patch" \
+    "ocserv/rtorrent/shairport-sync: fix library dependencies and FFmpeg 9 API" || true
+
+# 026. Baresip FFmpeg 9 removes the pixel format list helper.
+apply_git_patch \
+    "feeds/telephony" \
+    "026-baresip-ffmpeg-avopt.patch" \
+    "baresip: set FFmpeg pixel format list via av_opt_set_bin" || true
+
+# 027. Kernel module string declaration and FFmpeg 9 codec removals.
+apply_git_patch \
+    "feeds/packages" \
+    "027-xtables-gst-ffmpeg9.patch" \
+    "xtables/gst-libav: fix kernel string and FFmpeg 9 codecs" || true
+
+# 028. Generated evdev codes must tolerate older toolchain UAPI headers.
+apply_git_patch \
+    "feeds/packages" \
+    "028-python-evdev-input-codes.patch" \
+    "python-evdev: guard input codes against target headers" || true
+
+# 029. Qt iconv conflicts with ICU and libinput requires udev.
+apply_git_patch \
+    "feeds/video" \
+    "029-qt5base-icu-libinput-config.patch" \
+    "qt5base: resolve ICU/iconv and libinput/udev configure dependencies" || true
+
+# 030. GZDoom links glib with external NLS libraries.
+apply_git_patch \
+    "feeds/video" \
+    "030-gzdoom-nls-link.patch" \
+    "gzdoom: add NLS dependencies and linker search path" || true
+
+# 031. WPE WebKit CMake needs quoted optional framework values.
+apply_git_patch \
+    "feeds/video" \
+    "031-wpewebkit-cmake-empty-framework.patch" \
+    "wpewebkit: quote optional framework names for CMake" || true
+
+# 032. FreeSWITCH mod_av needs FFmpeg 9 compatibility.
+apply_git_patch \
+    "feeds/telephony" \
+    "032-freeswitch-mod-av-ffmpeg9.patch" \
+    "freeswitch: adapt mod_av to FFmpeg 9" || true
+
+# 033. Linux 6.12 still provides hrtimer_init.
+apply_git_patch \
+    "feeds/telephony" \
+    "033-dahdi-hrtimer-version-guard.patch" \
+    "dahdi-linux: use hrtimer_setup only on Linux 6.18 and later" || true
+
+# 034. Retry transient crates.io transfer failures for eza.
+apply_git_patch \
+    "feeds/packages" \
+    "034-eza-cargo-network-retries.patch" \
+    "eza: retry crate downloads without HTTP/2 multiplexing" || true
+
+# 035. Go linux/powerpc does not support PIE buildmode.
+apply_git_patch \
+    "feeds/packages" \
+    "035-containerd-disable-pie-powerpc.patch" \
+    "containerd: disable PIE on 32-bit PowerPC" || true
+
+# 036. Exclude container runtimes on Go-unsupported target architectures.
+apply_git_patch \
+    "feeds/packages" \
+    "036-container-runtime-guard-go-arch.patch" \
+    "container runtimes: honor Go architecture support" || true
 
 #
 # Summary

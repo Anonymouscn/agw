@@ -14,6 +14,11 @@ chdir $ENV{TOPDIR};
 $ENV{GIT_CONFIG_PARAMETERS}="'core.autocrlf=false'";
 $ENV{GREP_OPTIONS}="";
 
+my $scan_jobs = "";
+if (defined $ENV{AGW_SCAN_JOBS}) {
+    $ENV{AGW_SCAN_JOBS} =~ /^[1-9][0-9]*$/ or die "Invalid AGW_SCAN_JOBS\n";
+    $scan_jobs = "-j$ENV{AGW_SCAN_JOBS}";
+}
 my $mk=`command -v gmake 2>/dev/null`;	# select the right 'make' program
 chomp($mk);		# trim trailing newline
 $mk or $mk = "make";	# default to 'make'
@@ -133,8 +138,8 @@ sub update_index($)
 	$is_tty = defined $is_tty ? $is_tty : $ENV{MAKE_TERMOUT};
 	$is_tty = defined $is_tty ? $is_tty : 1;
 
-	system("$mk -s -f include/scan.mk IS_TTY=$is_tty SCAN_TARGET=\"packageinfo\" SCAN_DIR=\"feeds/$name\" SCAN_NAME=\"package\" SCAN_DEPTH=5 SCAN_EXTRA=\"\" TMP_DIR=\"$ENV{TOPDIR}/feeds/$name.tmp\"");
-	system("$mk -s -f include/scan.mk IS_TTY=$is_tty SCAN_TARGET=\"targetinfo\" SCAN_DIR=\"feeds/$name\" SCAN_NAME=\"target\" SCAN_DEPTH=5 SCAN_EXTRA=\"\" SCAN_MAKEOPTS=\"TARGET_BUILD=1\" TMP_DIR=\"$ENV{TOPDIR}/feeds/$name.tmp\"");
+	system("$mk -s $scan_jobs -f include/scan.mk IS_TTY=$is_tty SCAN_TARGET=\"packageinfo\" SCAN_DIR=\"feeds/$name\" SCAN_NAME=\"package\" SCAN_DEPTH=5 SCAN_EXTRA=\"\" TMP_DIR=\"$ENV{TOPDIR}/feeds/$name.tmp\"");
+	system("$mk -s $scan_jobs -f include/scan.mk IS_TTY=$is_tty SCAN_TARGET=\"targetinfo\" SCAN_DIR=\"feeds/$name\" SCAN_NAME=\"target\" SCAN_DEPTH=5 SCAN_EXTRA=\"\" SCAN_MAKEOPTS=\"TARGET_BUILD=1\" TMP_DIR=\"$ENV{TOPDIR}/feeds/$name.tmp\"");
 
 	system("ln -sf $name.tmp/.packageinfo ./feeds/$name.index");
 	system("ln -sf $name.tmp/.targetinfo ./feeds/$name.targetindex");

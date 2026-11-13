@@ -1,0 +1,26 @@
+Subject: [PATCH] r8101: replace removed strncpy with strscpy
+
+Linux 7.2 no longer provides strncpy() to kernel callers. bus_info is a
+NUL-terminated ethtool string, so use strscpy() with its complete buffer
+size. Include the kernel string declarations explicitly. This API is
+also available on the supported Linux 6.12 and 6.18 kernels.
+
+--- a/src/r8101_n.c
++++ b/src/r8101_n.c
+@@ -52,6 +52,7 @@
+ #include <linux/in.h>
+ #include <linux/ip.h>
++#include <linux/string.h>
+ #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,22)
+ #include <linux/ipv6.h>
+ #include <net/ip6_checksum.h>
+ #endif
+@@ -3822,7 +3823,7 @@ rtl8101_get_drvinfo(struct net_device *de
+ 
+         strcpy(info->driver, MODULENAME);
+         strcpy(info->version, RTL8101_VERSION);
+-        strncpy(info->bus_info, pci_name(tp->pci_dev), sizeof(info->bus_info) - 1);
++        strscpy(info->bus_info, pci_name(tp->pci_dev), sizeof(info->bus_info));
+         info->regdump_len = R8101_REGS_DUMP_SIZE;
+ }
+ 

@@ -1,0 +1,984 @@
+# Based on openwrt/actions-shared-workflows reusable_build.yml at
+# 35022f31a3e45a35b7bd0a82151187cb325071f6; local downloads are verified and retried.
+name: Build sub target
+
+on:
+  workflow_call:
+    secrets:
+      coverity_api_token:
+    outputs:
+      ccache_tag:
+        value: ${{ jobs.setup_build.outputs.ccache_tag }}
+    inputs:
+      container_name:
+        type: string
+        default: tools
+      target:
+        required: true
+        type: string
+      subtarget:
+        required: true
+        type: string
+      testing:
+        type: boolean
+      build_toolchain:
+        type: boolean
+      include_feeds:
+        type: boolean
+      feeds_lock:
+        type: string
+      regression_all_packages:
+        type: boolean
+      expected_kernel:
+        type: string
+      expected_release:
+        type: string
+      build_full:
+        type: boolean
+      build_kernel:
+        type: boolean
+      build_all_modules:
+        type: boolean
+      build_all_kmods:
+        type: boolean
+      build_dtb:
+        type: boolean
+      build_all_boards:
+        type: boolean
+      use_openwrt_container:
+        type: boolean
+        default: true
+      coverity_project_name:
+        type: string
+        default: OpenWrt
+      coverity_check_packages:
+        type: string
+      coverity_compiler_template_list:
+        type: string
+        default: >-
+          arm-openwrt-linux-gcc
+      coverity_force_compile_packages:
+        type: string
+        default: >-
+          curl
+          libnl
+          mbedtls
+          wolfssl
+          openssl
+      build_external_toolchain:
+        type: boolean
+      upload_external_toolchain:
+        type: boolean
+      use_ccache_cache:
+        type: boolean
+        default: true
+      ccache_type:
+        type: string
+        default: kernel
+      upload_ccache_cache:
+        type: boolean
+      check:
+        type: boolean
+        default: true
+      check_packages_list:
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  setup_build:
+    name: Set up build ${{ inputs.target }}/${{ inputs.subtarget }}
+    runs-on: ubuntu-slim
+    outputs:
+      container: ${{ steps.determine_container.outputs.container }}
+      ccache_tag: ${{ steps.determine_ccache_tag.outputs.ccache_tag }}
+      ccache_name: ${{ steps.determine_ccache_name.outputs.ccache_name }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set lower case owner name
+        id: lower_owner
+        run: |
+          OWNER_LC=$(echo "${{ github.repository_owner }}" \
+            | tr '[:upper:]' '[:lower:]')
+
+          if [ ${{ inputs.use_openwrt_container }} == "true" ]; then
+            OWNER_LC=openwrt
+          fi
+
+          echo "owner_lc=$OWNER_LC" >> $GITHUB_OUTPUT
+
+      - name: Determine base branch tag
+        id: determine_base_branch
+        run: |
+          BASE_BRANCH=main
+          if [ -n "${{ github.base_ref }}" ]; then
+            if echo "${{ github.base_ref }}" | grep -q -E '^openwrt-[0-9][0-9]\.[0-9][0-9]$'; then
+              BASE_BRANCH="${{ github.base_ref }}"
+            fi
+          elif [ ${{ github.ref_type }} == "branch" ]; then
+            if echo "${{ github.ref_name }}" | grep -q -E '^openwrt-[0-9][0-9]\.[0-9][0-9]$'; then
+              BASE_BRANCH=${{ github.ref_name }}
+            elif echo "${{ github.ref_name }}" | grep -q -E '^openwrt-[0-9][0-9]\.[0-9][0-9]-'; then
+              BASE_BRANCH="$(echo ${{ github.ref_name }} | sed 's/^\(openwrt-[0-9][0-9]\.[0-9][0-9]\)-.*/\1/')"
+            fi
+          elif [ ${{ github.ref_type }} == "tag" ]; then
+            if echo "${{ github.ref_name }}" | grep -q -E '^v[0-9][0-9]\.[0-9][0-9]\..+'; then
+              BASE_BRANCH=openwrt-"$(echo ${{ github.ref_name }} | sed 's/^v\([0-9][0-9]\.[0-9][0-9]\)\..\+/\1/')"
+            fi
+          fi
+
+          echo "Detected base branch as $BASE_BRANCH"
+          echo "base_branch=$BASE_BRANCH" >> $GITHUB_OUTPUT
+
+      # Per branch tools container tag
+      # By default stick to latest
+      # For official test targetting openwrt stable branch
+      # Get the branch or parse the tag and push dedicated tools containers
+      # For local test to use the correct container for stable release testing
+      # you need to use for the branch name a prefix of openwrt-[0-9][0-9].[0-9][0-9]-
+      - name: Determine container name
+        id: determine_container_name
+        env:
+          CONTAINER_TAG: ${{ steps.determine_base_branch.outputs.base_branch != 'main' && steps.determine_base_branch.outputs.base_branch || 'latest' }}
+        run: |
+          CONTAINER_NAME=${{ inputs.container_name }}
+          CONTAINER_TAG=${{ env.CONTAINER_TAG }}
+
+          if [ "$CONTAINER_NAME" = "toolchain" ]; then
+            GHCR_TOKEN=$(echo ${{ secrets.GITHUB_TOKEN }} | base64)
+            GHCR_HEADER="Authorization: Bearer ${GHCR_TOKEN}"
+            GHCR_MANIFEST_LINK=https://ghcr.io/v2/${{ steps.lower_owner.outputs.owner_lc }}/${{ inputs.container_name }}/manifests/${{ inputs.target }}-${{ inputs.subtarget }}-"$CONTAINER_TAG"
+            # Check if container exist
+            if [ $(curl -s -o /dev/null -w "%{http_code}" -H "$GHCR_HEADER" -I "$GHCR_MANIFEST_LINK") = 200 ]; then
+              CONTAINER_TAG=${{ inputs.target }}-${{ inputs.subtarget }}-"$CONTAINER_TAG"
+            else
+              CONTAINER_NAME=tools
+            fi
+          fi
+
+          echo "Tools container to use $CONTAINER_NAME:$CONTAINER_TAG"
+          echo "container_name=$CONTAINER_NAME:$CONTAINER_TAG" >> $GITHUB_OUTPUT
+
+      - name: Determine container
+        id: determine_container
+        run: echo "container=${{ steps.lower_owner.outputs.owner_lc }}/${{ steps.determine_container_name.outputs.container_name }}" >> $GITHUB_OUTPUT
+
+      - name: Determine ccache tag
+        id: determine_ccache_tag
+        if: steps.determine_base_branch.outputs.base_branch != 'main'
+        run: echo "ccache_tag=${{ format('-{0}', steps.determine_base_branch.outputs.base_branch) }}" >> $GITHUB_OUTPUT
+
+      - name: Determine ccache name
+        id: determine_ccache_name
+        run: echo "ccache_name=ccache-${{ inputs.ccache_type }}-${{ inputs.target }}-${{ inputs.subtarget }}${{ inputs.testing == true && '-testing' || '' }}${{ steps.determine_ccache_tag.outputs.ccache_tag }}" >> $GITHUB_OUTPUT
+
+  check:
+    name: Check packages for ${{ inputs.target }}/${{ inputs.subtarget }}
+    needs: setup_build
+    if: inputs.check == true && ( github.event_name == 'push' || github.event_name == 'workflow_dispatch' || inputs.check_packages_list != '' )
+    runs-on: ubuntu-latest
+
+    container: ghcr.io/${{ needs.setup_build.outputs.container }}
+
+    permissions:
+      contents: read
+      packages: read
+
+    steps:
+      - name: Checkout master directory
+        uses: actions/checkout@v7
+        with:
+          path: openwrt
+
+      - name: Fix permission
+        run: |
+          chown -R buildbot:buildbot openwrt
+
+      - name: Prepare prebuilt tools
+        shell: su buildbot -c "sh -e {0}"
+        working-directory: openwrt
+        run: |
+          mkdir -p staging_dir build_dir
+          ln -s /prebuilt_tools/staging_dir/host staging_dir/host
+          ln -s /prebuilt_tools/build_dir/host build_dir/host
+
+          ./scripts/ext-tools.sh --refresh
+
+      - name: Configure all modules
+        shell: su buildbot -c "sh -e {0}"
+        working-directory: openwrt
+        run: |
+          echo CONFIG_ALL=y >> .config
+
+          echo CONFIG_TARGET_MULTI_PROFILE=y >> .config
+          echo CONFIG_TARGET_PER_DEVICE_ROOTFS=y >> .config
+          echo CONFIG_TARGET_ALL_PROFILES=y >> .config
+          echo CONFIG_JSON_OVERVIEW_IMAGE_INFO=y >> .config
+
+          echo CONFIG_DEVEL=y >> .config
+          echo CONFIG_AUTOREMOVE=y >> .config
+
+          echo "CONFIG_TARGET_${{ inputs.target }}=y" >> .config
+          echo "CONFIG_TARGET_${{ inputs.target }}_${{ inputs.subtarget }}=y" >> .config
+
+          make defconfig
+
+      - name: Compile needed host tools
+        shell: su buildbot -c "sh -e {0}"
+        working-directory: openwrt
+        run: make tools/tar/compile -j$(nproc) BUILD_LOG=1 || ret=$? .github/workflows/scripts/show_build_failures.sh
+
+      - name: Download and check toolchain
+        if: inputs.build_toolchain == true
+        shell: su buildbot -c "sh -e {0}"
+        working-directory: openwrt
+        run: make toolchain/download toolchain/check FIXUP=1 -j$(nproc) BUILD_LOG=1 || ret=$? .github/workflows/scripts/show_build_failures.sh
+
+      - name: Download and check packages
+        if: inputs.build_all_modules == true || inputs.build_all_kmods == true || inputs.build_full == true
+        shell: su buildbot -c "sh -e {0}"
+        working-directory: openwrt
+        run: |
+          # With push events or check_packages_list set to all check all packages
+          if [ "${{ github.event_name }}" = "push" ] || [ "${{ inputs.check_packages_list }}" = "all" ]; then
+            make package/download package/check FIXUP=1 -j$(nproc) BUILD_LOG=1 || ret=$? .github/workflows/scripts/show_build_failures.sh
+          # With every other event check only changed packages (if provided)
+          elif [ -n "${{ inputs.check_packages_list }}" ]; then
+            for package in ${{ inputs.check_packages_list }}; do
+              make package/$package/download package/$package/check FIXUP=1 -j$(nproc) BUILD_LOG=1 || ret=$? .github/workflows/scripts/show_build_failures.sh
+            done
+          fi
+
+      - name: Validate checked packages
+        shell: su buildbot -c "sh -e {0}"
+        working-directory: openwrt
+        run: |
+          . .github/workflows/scripts/ci_helpers.sh
+
+          if git diff --name-only --exit-code; then
+            success "All packages seems ok"
+          else
+            err "Some package Makefiles requires fix. (run 'make package/check FIXUP=1' and force push this pr)"
+            err "You can also check the provided artifacts with the refreshed patch from this CI run."
+            mkdir packages-fixed
+            for f in $(git diff --name-only); do
+              cp --parents $f packages-fixed/
+            done
+            exit 1
+          fi
+
+      - name: Upload fixed Packages
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ inputs.target }}-${{ inputs.subtarget }}${{ inputs.testing == true && '-testing' || '' }}-packages-fixed
+          path: openwrt/packages-fixed
+
+  build:
+    name: Build ${{ inputs.target }}/${{ inputs.subtarget }}
+    needs: setup_build
+    runs-on: ubuntu-latest
+
+    container:
+      image: ghcr.io/${{ needs.setup_build.outputs.container }}
+      options: --privileged --pid=host
+
+    permissions:
+      contents: read
+      packages: read
+      actions: write
+
+    steps:
+      - name: Free up some space in Host Github Image
+        shell: sh -c "nsenter -t 1 -a sh -e /home/runner/$(echo {0} | sed s#^/__w#work#)"
+        env:
+          DELETE_DIR: /usr/local/lib/android /usr/local/.ghcup /usr/share/dotnet /usr/share/swift
+        run: |
+          mkdir /empty
+          for dir in $DELETE_DIR; do
+            sudo rsync -a --delete /empty/ $dir
+          done
+
+      - name: Checkout master directory
+        uses: actions/checkout@v7
+        with:
+          path: openwrt
+          fetch-depth: 0
+
+      - name: Checkout packages feed
+        if: inputs.include_feeds == true && inputs.feeds_lock == ''
+        uses: actions/checkout@v7
+        with:
+          repository: openwrt/packages
+          path: openwrt/feeds/packages
+
+      - name: Checkout luci feed
+        if: inputs.include_feeds == true && inputs.feeds_lock == ''
+        uses: actions/checkout@v7
+        with:
+          repository: openwrt/luci
+          path: openwrt/feeds/luci
+
+      - name: Checkout routing feed
+        if: inputs.include_feeds == true && inputs.feeds_lock == ''
+        uses: actions/checkout@v7
+        with:
+          repository: openwrt/routing
+          path: openwrt/feeds/routing
+
+      - name: Checkout telephony feed
+        if: inputs.include_feeds == true && inputs.feeds_lock == ''
+        uses: actions/checkout@v7
+        with:
+          repository: openwrt/telephony
+          path: openwrt/feeds/telephony
+
+      - name: Parse toolchain path
+        if: inputs.build_toolchain == false
+        working-directory: openwrt
+        run: |
+          TOOLCHAIN_PATH=snapshots
+
+          if [ -n "${{ github.base_ref }}" ]; then
+            if echo "${{ github.base_ref }}" | grep -q -E '^openwrt-[0-9][0-9]\.[0-9][0-9]$'; then
+              major_ver="$(echo ${{ github.base_ref }} | sed 's/^openwrt-/v/')"
+            fi
+          elif [ "${{ github.ref_type }}" = "branch" ]; then
+            if echo "${{ github.ref_name }}" | grep -q -E '^openwrt-[0-9][0-9]\.[0-9][0-9]$'; then
+              major_ver="$(echo ${{ github.ref_name }} | sed 's/^openwrt-/v/')"
+            elif echo "${{ github.ref_name }}" | grep -q -E '^openwrt-[0-9][0-9]\.[0-9][0-9]-'; then
+              major_ver="$(echo ${{ github.ref_name }} | sed 's/^openwrt-\([0-9][0-9]\.[0-9][0-9]\)-.*/v\1/')"
+            fi
+          elif [ "${{ github.ref_type }}" = "tag" ]; then
+            if echo "${{ github.ref_name }}" | grep -q -E '^v[0-9][0-9]\.[0-9][0-9]\..+'; then
+              major_ver="$(echo ${{ github.ref_name }} | sed 's/^\(v[0-9][0-9]\.[0-9][0-9]\)\..\+/\1/')"
+            fi
+          fi
+
+          if [ -n "$major_ver" ]; then
+            git fetch --tags -f
+            latest_tag="$(git tag --sort=-creatordate -l $major_ver* | head -n1)"
+            if [ -n "$latest_tag" ]; then
+              TOOLCHAIN_PATH=releases/$(echo $latest_tag | sed 's/^v//')
+            fi
+          fi
+
+          SUMS_FILE="https://downloads.cdn.openwrt.org/$TOOLCHAIN_PATH/targets/${{ inputs.target }}/${{ inputs.subtarget }}/sha256sums"
+
+          echo "TOOLCHAIN_PATH=$TOOLCHAIN_PATH" >> "$GITHUB_ENV"
+          echo "SUMS_FILE=$SUMS_FILE" >> "$GITHUB_ENV"
+
+      - name: Parse toolchain file
+        if: inputs.build_toolchain == false
+        id: parse-toolchain
+        run: |
+          python3 openwrt/.github/workflows/scripts/ci_downloads.py select \
+            --url "$SUMS_FILE" --kind toolchain
+
+      - name: Parse prebuilt LLVM from cached manifest
+        if: inputs.build_toolchain == false
+        id: parse-prebuilt-llvm
+        run: |
+          python3 openwrt/.github/workflows/scripts/ci_downloads.py select \
+            --url "$SUMS_FILE" --kind llvm
+
+      - name: Download and extract ccache cache from s3
+        id: restore-ccache-cache-s3
+        if: inputs.use_ccache_cache == true &&
+            ( inputs.ccache_type != 'kernel' || inputs.upload_ccache_cache != true || (github.event_name != 'push' && github.event_name != 'workflow_dispatch'))
+        working-directory: openwrt
+        run: |
+          S3_LINK=https://s3-ccache.openwrt-ci.ansuel.com
+          CCACHE_TAR=${{ needs.setup_build.outputs.ccache_name }}.tar
+
+          if curl -o /dev/null -s --head --fail $S3_LINK/$CCACHE_TAR; then
+            wget -O - $S3_LINK/$CCACHE_TAR | tar -xf -
+            echo "cache-hit=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Fix permission
+        run: |
+          chown -R buildbot:buildbot openwrt
+
+      - name: Prepare prebuilt tools
+        shell: su buildbot -c "sh -e {0}"
+        working-directory: openwrt
+        run: |
+          mkdir -p staging_dir build_dir
+          ln -s /prebuilt_tools/staging_dir/host staging_dir/host
+          ln -s /prebuilt_tools/build_dir/host build_dir/host
+
+          ./scripts/ext-tools.sh --refresh
+
+      - name: Update & Install feeds
+        if: inputs.include_feeds == true
+        shell: su buildbot -c "sh -e {0}"
+        working-directory: openwrt
+        env:
+          FEEDS_LOCK: ${{ inputs.feeds_lock }}
+        run: |
+          if [ -n "$FEEDS_LOCK" ]; then
+            python3 .github/act/feed-lock.py restore --lock "$FEEDS_LOCK"
+            ./scripts/feeds update -i
+          else
+            ./scripts/feeds update -a
+          fi
+          ./scripts/feeds install -a
+          # Mesa's pinned host pip packaging version can downgrade the shared
+          # Python host environment after python-packaging/host is installed.
+          if [ -d feeds/video ]; then
+            patch="$PWD/local-patches/014-mesa-use-host-python-packaging.patch"
+            if ! git -C feeds/video apply --reverse --check "$patch" >/dev/null 2>&1; then
+              git -C feeds/video apply --check "$patch"
+              git -C feeds/video apply "$patch"
+            fi
+          fi
+
+          # Replay package-feed fixes after the feed refresh.
+          if [ -d feeds/packages ]; then
+            for patch_name in 009-postfix-linux7-platform.patch 015-fish-cargo-and-gcc-target-cc.patch 016-build-nls-link-paths.patch 017-postfix-unset-ld-library-path.patch 018-rtorrent-cxx-no-ccache.patch; do
+              patch="$PWD/local-patches/$patch_name"
+              if ! git -C feeds/packages apply --reverse --check "$patch" >/dev/null 2>&1; then
+                git -C feeds/packages apply --check "$patch"
+                git -C feeds/packages apply "$patch"
+              fi
+            done
+          fi
+
+          if [ -d feeds/helloworld ]; then
+            patch="$PWD/local-patches/019-naiveproxy-python39-annotations.patch"
+            if ! git -C feeds/helloworld apply --reverse --check "$patch" >/dev/null 2>&1; then
+              git -C feeds/helloworld apply --check "$patch"
+              git -C feeds/helloworld apply "$patch"
+            fi
+          fi
+
+      - name: Restore ccache cache
+        id: restore-ccache-cache
+        if: inputs.use_ccache_cache == true &&
+            ( inputs.ccache_type != 'kernel' || inputs.upload_ccache_cache != true || (github.event_name != 'push' && github.event_name != 'workflow_dispatch')) &&
+            steps.restore-ccache-cache-s3.outputs.cache-hit != 'true'
+        uses: actions/cache/restore@v6
+        with:
+          path: openwrt/.ccache
+          key: ${{ needs.setup_build.outputs.ccache_name }}-${{ hashFiles('openwrt/include/kernel-**') }}
+          restore-keys: |
+            ${{ needs.setup_build.outputs.ccache_name }}-
+
+      - name: Checkout OpenWrt keyring
+        if: inputs.build_toolchain == false && ((steps.parse-toolchain.outputs.toolchain-type != 'internal' && steps.parse-toolchain.outputs.toolchain-type != 'external_container') ||
+          steps.parse-prebuilt-llvm.outputs.llvm-type == 'external')
+        uses: actions/checkout@v7
+        with:
+          repository: openwrt/keyring
+          path: keyring
+          sparse-checkout: |
+            gpg/CD54E82DADB3684D.asc
+            gpg/0x1D53D1877742E911.asc
+            gpg/626471F1.asc
+          sparse-checkout-cone-mode: false
+
+      - name: Import GPG keys
+        shell: su buildbot -c "sh -e {0}"
+        if: inputs.build_toolchain == false && ((steps.parse-toolchain.outputs.toolchain-type != 'internal' && steps.parse-toolchain.outputs.toolchain-type != 'external_container') ||
+          steps.parse-prebuilt-llvm.outputs.llvm-type == 'external')
+        run: gpg --import keyring/gpg/CD54E82DADB3684D.asc keyring/gpg/0x1D53D1877742E911.asc keyring/gpg/626471F1.asc
+
+      - name: Download external toolchain/sdk
+        if: inputs.build_toolchain == false && steps.parse-toolchain.outputs.toolchain-type != 'internal' && steps.parse-toolchain.outputs.toolchain-type != 'external_container'
+        shell: su buildbot -c "sh -e {0}"
+        working-directory: openwrt
+        run: |
+          python3 .github/workflows/scripts/ci_downloads.py extract \
+            --url "$SUMS_FILE" --cache tmp/ci-downloads --artifact "$TOOLCHAIN_FILE"
+
+      - name: Download and extract prebuilt llvm
+        if: inputs.build_toolchain == false && steps.parse-prebuilt-llvm.outputs.llvm-type == 'external'
+        shell: su buildbot -c "sh -e {0}"
+        working-directory: openwrt
+        run: |
+          python3 .github/workflows/scripts/ci_downloads.py extract \
+            --url "$SUMS_FILE" --cache tmp/ci-downloads --artifact "$LLVM_FILE"
+
+      - name: Clean configuration
+        shell: su buildbot -c "sh -e {0}"
+        working-directory: openwrt
+        run: |
+          rm -rf .config
+
+      - name: Configure testing kernel
+        if: inputs.testing == true
+        shell: su buildbot -c "sh -e {0}"
+        working-directory: openwrt
+        run: |
+          echo CONFIG_TESTING_KERNEL=y >> .config
+
+      - name: Configure KERNEL_WERROR
+        shell: su buildbot -c "sh -e {0}"
+        working-directory: openwrt
+        run: |
+          echo CONFIG_KERNEL_WERROR=y >> .config
+
+      - name: Configure all kernel modules
+        if: inputs.build_all_kmods == true
+        shell: su buildbot -c "sh -e {0}"
+        working-directory: openwrt
+        run: |
+          echo CONFIG_ALL_KMODS=y >> .config
+
+      - name: Configure all modules
+        if: inputs.build_all_modules == true
+        shell: su buildbot -c "sh -e {0}"
+        working-directory: openwrt
+        run: |
+          echo CONFIG_ALL=y >> .config
+
+      - name: Configure all boards
+        if: inputs.build_all_boards == true
+        shell: su buildbot -c "sh -e {0}"
+        working-directory: openwrt
+        run: |
+          echo CONFIG_TARGET_MULTI_PROFILE=y >> .config
+          echo CONFIG_TARGET_PER_DEVICE_ROOTFS=y >> .config
+          echo CONFIG_TARGET_ALL_PROFILES=y >> .config
+
+      - name: Export ccache environment
+        if: inputs.use_ccache_cache == true
+        env:
+          CCACHE_DIR: ${{ github.workspace }}/openwrt/.ccache
+          CCACHE_CONFIGPATH2: ${{ github.workspace }}/openwrt/staging_dir/host/etc/ccache.conf
+        run: |
+          echo "CCACHE_DIR=$CCACHE_DIR" >> "$GITHUB_ENV"
+          echo "CCACHE_CONFIGPATH2=$CCACHE_CONFIGPATH2" >> "$GITHUB_ENV"
+
+        # ccache for some reason have problem detecting compiler type
+        # with external toolchain. This cause the complete malfunction
+        # of ccache with the result of tons of unsupported compiler
+        # option error.
+        # To fix this force compiler type to gcc.
+      - name: Configure ccache and apply fixes
+        if: inputs.use_ccache_cache == true
+        shell: su buildbot -c "sh -e {0}"
+        working-directory: openwrt
+        run: |
+          touch $CCACHE_CONFIGPATH2
+
+          echo compiler_type=gcc >> $CCACHE_CONFIGPATH2
+          [ ${{ inputs.ccache_type }} = 'kernel' ] && echo max_size=1G >> $CCACHE_CONFIGPATH2
+          [ ${{ inputs.ccache_type }} = 'packages' ] && echo max_size=8G >> $CCACHE_CONFIGPATH2
+
+          echo depend_mode=true >> $CCACHE_CONFIGPATH2
+          echo sloppiness=file_macro,locale,time_macros,include_file_ctime,include_file_mtime >> $CCACHE_CONFIGPATH2
+
+          echo CONFIG_CCACHE=y >> .config
+
+      - name: Reset ccache stats
+        if: inputs.use_ccache_cache == true
+        shell: su buildbot -c "sh -e {0}"
+        working-directory: openwrt
+        run: staging_dir/host/bin/ccache --zero-stats
+
+      - name: Configure external toolchain in container
+        if: inputs.build_toolchain == false && steps.parse-toolchain.outputs.toolchain-type == 'external_container'
+        shell: su buildbot -c "sh -e {0}"
+        working-directory: openwrt
+        run: |
+          echo CONFIG_DEVEL=y >> .config
+          echo CONFIG_AUTOREMOVE=y >> .config
+
+          ./scripts/ext-toolchain.sh \
+            --toolchain /external-toolchain/$(ls /external-toolchain/ | grep openwrt-toolchain)/toolchain-* \
+            --overwrite-config \
+            --config ${{ inputs.target }}/${{ inputs.subtarget }}
+
+      - name: Configure external toolchain
+        if: inputs.build_toolchain == false && steps.parse-toolchain.outputs.toolchain-type == 'external_toolchain'
+        shell: su buildbot -c "sh -e {0}"
+        working-directory: openwrt
+        run: |
+          echo CONFIG_DEVEL=y >> .config
+          echo CONFIG_AUTOREMOVE=y >> .config
+
+          ./scripts/ext-toolchain.sh \
+            --toolchain ${{ env.TOOLCHAIN_NAME }}/toolchain-* \
+            --overwrite-config \
+            --config ${{ inputs.target }}/${{ inputs.subtarget }}
+
+      - name: Adapt external sdk to external toolchain format
+        if: inputs.build_toolchain == false && steps.parse-toolchain.outputs.toolchain-type == 'external_sdk'
+        shell: su buildbot -c "sh -e {0}"
+        working-directory: openwrt
+        run: |
+          TOOLCHAIN_DIR=${{ env.TOOLCHAIN_NAME }}/staging_dir/$(ls ${{ env.TOOLCHAIN_NAME }}/staging_dir | grep toolchain)
+          TOOLCHAIN_BIN=$TOOLCHAIN_DIR/bin
+          OPENWRT_DIR=$(pwd)
+
+          # Find target name from toolchain info.mk
+          GNU_TARGET_NAME=$(cat $TOOLCHAIN_DIR/info.mk | grep TARGET_CROSS | sed 's/^TARGET_CROSS=\(.*\)-$/\1/')
+
+          cd $TOOLCHAIN_BIN
+
+          # Revert sdk wrapper scripts applied to all the bins
+          for app in $(find . -name "*.bin"); do
+            TARGET_APP=$(echo $app | sed 's/\.\/\.\(.*\)\.bin/\1/')
+            rm $TARGET_APP
+            mv .$TARGET_APP.bin $TARGET_APP
+          done
+
+          # Setup the wrapper script in the sdk toolchain dir simulating an external toolchain build
+          cp $OPENWRT_DIR/target/toolchain/files/wrapper.sh $GNU_TARGET_NAME-wrapper.sh
+          for app in cc gcc g++ c++ cpp ld as ; do
+            [ -f $GNU_TARGET_NAME-$app ] && mv $GNU_TARGET_NAME-$app $GNU_TARGET_NAME-$app.bin
+            ln -sf $GNU_TARGET_NAME-wrapper.sh $GNU_TARGET_NAME-$app
+          done
+
+      - name: Configure external toolchain with sdk
+        if: inputs.build_toolchain == false && steps.parse-toolchain.outputs.toolchain-type == 'external_sdk'
+        shell: su buildbot -c "sh -e {0}"
+        working-directory: openwrt
+        run: |
+          echo CONFIG_DEVEL=y >> .config
+          echo CONFIG_AUTOREMOVE=y >> .config
+
+          ./scripts/ext-toolchain.sh \
+            --toolchain ${{ env.TOOLCHAIN_NAME }}/staging_dir/toolchain-* \
+            --overwrite-config \
+            --config ${{ inputs.target }}/${{ inputs.subtarget }}
+
+      - name: Configure internal toolchain
+        if: inputs.build_toolchain == true || steps.parse-toolchain.outputs.toolchain-type == 'internal'
+        shell: su buildbot -c "sh -e {0}"
+        working-directory: openwrt
+        run: |
+          echo CONFIG_DEVEL=y >> .config
+          echo CONFIG_AUTOREMOVE=y >> .config
+
+          echo "CONFIG_TARGET_${{ inputs.target }}=y" >> .config
+          echo "CONFIG_TARGET_${{ inputs.target }}_${{ inputs.subtarget }}=y" >> .config
+
+          make defconfig
+
+      - name: Configure prebuilt llvm
+        if: inputs.build_toolchain == false && steps.parse-prebuilt-llvm.outputs.llvm-type == 'external'
+        shell: su buildbot -c "sh -e {0}"
+        working-directory: openwrt
+        run: |
+          echo CONFIG_USE_LLVM_PREBUILT=y >> .config
+
+      - name: Determine ccache compiler_check
+        if: inputs.use_ccache_cache == true
+        shell: su buildbot -c "sh -e {0}"
+        working-directory: openwrt
+        run: |
+          REV=HEAD
+          TOOLCHAIN_NAME=in-tree
+          if [ "${{ inputs.build_toolchain }}" != "true" ] && [ -d /external-toolchain ]; then
+            GCC=$(find /external-toolchain -name '*-openwrt-linux-*-gcc' \( -type f -o -type l \) 2>/dev/null | head -n1)
+            if [ -n "$GCC" ]; then
+              TOOLCHAIN_REV=$("$GCC" --version | head -n1 | grep -oE 'r[0-9]+-[0-9a-f]+' | sed 's/^r[0-9]*-//')
+              git cat-file -e "$TOOLCHAIN_REV" 2>/dev/null && REV=$TOOLCHAIN_REV
+              TOOLCHAIN_NAME=$(basename "$(dirname "$(dirname "$GCC")")")
+            fi
+          fi
+
+          SHA=$(git log -1 --format=%H "$REV" -- toolchain/gcc/ toolchain/binutils/)
+          echo "Using toolchain rev $REV -> last toolchain change $SHA ($TOOLCHAIN_NAME)"
+
+          echo "compiler_check=string:$SHA:$TOOLCHAIN_NAME" >> $CCACHE_CONFIGPATH2
+
+      - name: Show configuration
+        shell: su buildbot -c "sh -e {0}"
+        working-directory: openwrt
+        run: ./scripts/diffconfig.sh
+
+      - name: Assert regression configuration
+        if: inputs.regression_all_packages == true
+        shell: su buildbot -c "sh -e {0}"
+        working-directory: openwrt
+        env:
+          EXPECTED_KERNEL: ${{ inputs.expected_kernel }}
+        run: |
+          python3 .github/act/check-config.py --log regression-results/config-check.log
+          grep -qx 'CONFIG_ALL=y' .config
+          grep -qx 'CONFIG_ALL_KMODS=y' .config
+          grep -qx 'CONFIG_KERNEL_WERROR=y' .config
+          if [ -n "$EXPECTED_KERNEL" ]; then
+            grep -qx "CONFIG_LINUX_$(echo "$EXPECTED_KERNEL" | tr . _)=y" .config
+          fi
+
+      - name: Prepare native C++23 compiler for GN
+        shell: bash
+        working-directory: openwrt
+        run: |
+          if grep -Eq '^CONFIG_PACKAGE_gn=[ym]$' .config; then
+            bash .github/workflows/scripts/setup_host_cxx.sh /opt/agw-host-compiler
+            echo 'GN_HOST_CC=/opt/agw-host-compiler/bin/cc' >> "$GITHUB_ENV"
+            echo 'GN_HOST_CXX=/opt/agw-host-compiler/bin/cxx' >> "$GITHUB_ENV"
+            echo 'GN_HOST_LDFLAGS=-Wl,-rpath=/opt/agw-host-compiler/lib' >> "$GITHUB_ENV"
+            echo /opt/agw-host-compiler/bin >> "$GITHUB_PATH"
+            echo 'MAKE=/opt/agw-host-compiler/bin/make' >> "$GITHUB_ENV"
+            echo 'GNUMAKEFLAGS=--jobserver-style=fifo' >> "$GITHUB_ENV"
+          fi
+
+      - name: Build tools
+        shell: su buildbot -c "sh -e {0}"
+        working-directory: openwrt
+        run: make tools/install -j$(nproc) BUILD_LOG=1 || ret=$? .github/workflows/scripts/show_build_failures.sh
+
+      - name: Build toolchain
+        shell: su buildbot -c "sh -e {0}"
+        working-directory: openwrt
+        run: make toolchain/install -j$(nproc) BUILD_LOG=1 || ret=$? .github/workflows/scripts/show_build_failures.sh
+
+      - name: Build Kernel
+        if: inputs.build_kernel == true
+        shell: su buildbot -c "sh -e {0}"
+        working-directory: openwrt
+        run: make target/compile -j$(nproc) BUILD_LOG=1 || ret=$? .github/workflows/scripts/show_build_failures.sh
+
+      - name: Build Kernel Kmods
+        if: inputs.build_kernel == true && inputs.regression_all_packages != true
+        shell: su buildbot -c "sh -e {0}"
+        working-directory: openwrt
+        run: make package/linux/compile -j$(nproc) BUILD_LOG=1 || ret=$? .github/workflows/scripts/show_build_failures.sh
+
+      - name: Build selected external kernel modules
+        if: inputs.build_kernel == true && inputs.build_all_kmods == true && inputs.regression_all_packages != true
+        shell: su buildbot -c "bash -e -o pipefail {0}"
+        working-directory: openwrt
+        run: |
+          python3 .github/act/external-kmods.py > tmp/ci-external-kmods.targets
+          mapfile -t targets < tmp/ci-external-kmods.targets
+          if (( ${#targets[@]} )); then
+            # Earlier stages completed defconfig and prerequisites. Use one
+            # internal make graph so package targets share their dependencies.
+            make -r -f .github/act/external-kmods.mk -k -j$(nproc) BUILD_LOG=1 "${targets[@]}" || ret=$? .github/workflows/scripts/show_build_failures.sh
+          fi
+
+      - name: Build every selected package and module
+        if: inputs.regression_all_packages == true
+        shell: su buildbot -c "bash -e -o pipefail {0}"
+        working-directory: openwrt
+        env:
+          EXPECTED_RELEASE: ${{ inputs.expected_release }}
+        run: |
+          mkdir -p regression-results
+          if [ -n "$EXPECTED_RELEASE" ]; then
+            release_file=$(find build_dir -path "*/linux-$EXPECTED_RELEASE/include/config/kernel.release" -print -quit)
+            test -n "$release_file"
+            case $(cat "$release_file") in
+              "$EXPECTED_RELEASE"|"$EXPECTED_RELEASE"-*) ;;
+              *) echo 'Unexpected compiled kernel release' >&2; exit 1 ;;
+            esac
+          fi
+          set +e
+          make package/compile -k -j$(nproc) IGNORE_ERRORS= BUILD_LOG=1
+          result=$?
+          echo "$result" > regression-results/package-build.exit
+          if (( result )); then
+            ret=$result bash .github/workflows/scripts/show_build_failures.sh logs 30 || true
+          fi
+          exit "$result"
+
+      - name: Verify selected package artifacts
+        if: inputs.regression_all_packages == true
+        shell: su buildbot -c "sh -e {0}"
+        working-directory: openwrt
+        run: |
+          python3 .github/act/package-coverage.py --output regression-results \
+            --build-exit-file regression-results/package-build.exit --require-complete
+
+      - name: Build DTBs
+        if: inputs.build_dtb == true
+        shell: su buildbot -c "sh -e {0}"
+        working-directory: openwrt
+        run: |
+          # Check if special dtb makefile target is available
+          # For this to correctly work, a .config is required but this is already done by
+          # previous steps
+          TOPDIR=$(pwd) make -C target/linux dtb -q >/dev/null 2>/dev/null || ret=$?
+          [ $ret = 2 ] && exit 0
+
+          make target/linux/dtb -j$(nproc) BUILD_LOG=1 || ret=$? .github/workflows/scripts/show_build_failures.sh
+
+      - name: Build everything
+        if: inputs.build_full == true
+        shell: su buildbot -c "sh -e {0}"
+        working-directory: openwrt
+        run: make -k -j$(nproc) IGNORE_ERRORS= BUILD_LOG=1 || ret=$? .github/workflows/scripts/show_build_failures.sh
+
+      - name: Verify declared device images
+        if: inputs.regression_all_packages == true && inputs.build_full == true
+        shell: su buildbot -c "sh -e {0}"
+        working-directory: openwrt
+        run: |
+          python3 .github/act/package-coverage.py --output regression-results \
+            --build-exit-file regression-results/package-build.exit --require-complete --images
+
+      - name: Build external toolchain
+        if: inputs.build_external_toolchain == true
+        shell: su buildbot -c "sh -e {0}"
+        working-directory: openwrt
+        run: make target/toolchain/compile -j$(nproc) BUILD_LOG=1 || ret=$? .github/workflows/scripts/show_build_failures.sh
+
+      - name: Show ccache stats
+        if: inputs.use_ccache_cache == true
+        shell: su buildbot -c "sh -e {0}"
+        working-directory: openwrt
+        run: staging_dir/host/bin/ccache -vv --show-stats
+
+      - name: Coverity prepare toolchain
+        if: inputs.coverity_check_packages != ''
+        shell: su buildbot -c "sh -e {0}"
+        working-directory: openwrt
+        run: |
+          wget -q https://scan.coverity.com/download/linux64 --post-data "token=${{ secrets.coverity_api_token }}&project=${{ inputs.coverity_project_name }}" -O coverity.tar.gz
+          wget -q https://scan.coverity.com/download/linux64 --post-data "token=${{ secrets.coverity_api_token }}&project=${{ inputs.coverity_project_name }}&md5=1" -O coverity.tar.gz.md5
+          echo ' coverity.tar.gz' >> coverity.tar.gz.md5
+          md5sum -c coverity.tar.gz.md5
+
+          mkdir cov-analysis-linux64
+          tar xzf coverity.tar.gz --strip 1 -C cov-analysis-linux64
+          export PATH=$(pwd)/cov-analysis-linux64/bin:$PATH
+
+          for template in ${{ inputs.coverity_compiler_template_list }}; do
+            cov-configure --template --comptype gcc --compiler "$template"
+          done
+
+      - name: Clean and recompile packages with Coverity toolchain
+        if: inputs.coverity_check_packages != ''
+        shell: su buildbot -c "bash {0}"
+        working-directory: openwrt
+        run: |
+          set -o pipefail -o errexit
+
+          coverity_check_packages=(${{ inputs.coverity_check_packages }})
+          printf -v clean_packages "package/%s/clean " "${coverity_check_packages[@]}"
+          make -j$(nproc) BUILD_LOG=1 $clean_packages || ret=$? .github/workflows/scripts/show_build_failures.sh
+
+          coverity_force_compile_packages=(${{ inputs.coverity_force_compile_packages }})
+          printf -v force_compile_packages "package/%s/compile " "${coverity_force_compile_packages[@]}"
+          make -j$(nproc) BUILD_LOG=1 $force_compile_packages || ret=$? .github/workflows/scripts/show_build_failures.sh
+
+          printf -v compile_packages "package/%s/compile " "${coverity_check_packages[@]}"
+          export PATH=$(pwd)/cov-analysis-linux64/bin:$PATH
+          cov-build --dir cov-int make -j $(nproc) BUILD_LOG=1 $compile_packages || ret=$? .github/workflows/scripts/show_build_failures.sh
+
+      - name: Upload build to Coverity for analysis
+        if: inputs.coverity_check_packages != ''
+        shell: su buildbot -c "sh -e {0}"
+        working-directory: openwrt
+        run: |
+          tar czf cov-int.tar.gz ./cov-int
+          curl \
+            --form token="${{ secrets.coverity_api_token }}" \
+            --form email="contact@openwrt.org" \
+            --form file=@cov-int.tar.gz \
+            --form version="${{ github.ref_name }}-${{ github.sha }}" \
+            --form description="OpenWrt ${{ github.ref_name }}-${{ github.sha }}" \
+            "https://scan.coverity.com/builds?project=${{ inputs.coverity_project_name }}"
+
+      - name: Upload logs
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ inputs.target }}-${{ inputs.subtarget }}${{ inputs.testing == true && '-testing' || '' }}-logs
+          path: "openwrt/logs"
+
+      - name: Record package coverage after any build outcome
+        if: always() && inputs.regression_all_packages == true
+        shell: su buildbot -c "sh -e {0}"
+        working-directory: openwrt
+        env:
+          EXPECT_IMAGES: ${{ inputs.build_full }}
+          BUILD_STATUS: ${{ job.status }}
+        run: |
+          mkdir -p regression-results
+          if [ -f .config ] && [ -f tmp/.packageinfo ] && [ -x staging_dir/host/bin/apk ]; then
+            if [ "$EXPECT_IMAGES" = true ]; then set -- --images; else set --; fi
+            if [ "$BUILD_STATUS" = success ]; then result=0; else result=1; fi
+            python3 .github/act/package-coverage.py --output regression-results \
+              --build-exit-file regression-results/package-build.exit --run-exit "$result" "$@"
+          else
+            echo 'Configuration or package metadata unavailable; coverage is incomplete.' > regression-results/NOT_RUN.txt
+          fi
+          test ! -f .github/regression/feeds.lock.json || cp .github/regression/feeds.lock.json regression-results/
+
+      - name: Upload complete regression evidence
+        if: always() && inputs.regression_all_packages == true
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ inputs.target }}-${{ inputs.subtarget }}${{ inputs.testing == true && '-testing' || '' }}-regression
+          path: |
+            openwrt/regression-results
+            openwrt/bin/targets/**/profiles.json
+            openwrt/bin/targets/**/sha256sums
+          if-no-files-found: error
+
+      - name: Cleanup ccache
+        if: inputs.use_ccache_cache == true && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+        shell: su buildbot -c "sh -e {0}"
+        working-directory: openwrt
+        run: |
+          staging_dir/host/bin/ccache --evict-older-than 1d
+          staging_dir/host/bin/ccache --cleanup
+
+      - name: Cleanup dl/build_dir/staging_dir to make some space
+        working-directory: openwrt
+        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+        run: rm -rf dl build_dir staging_dir
+
+      - name: Delete already present ccache cache
+        if: steps.restore-ccache-cache.outputs.cache-hit == 'true' && inputs.use_ccache_cache == true  &&
+          (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && steps.restore-ccache-cache-s3.outputs.cache-hit != 'true'
+        uses: octokit/request-action@v3.x
+        with:
+          route: DELETE /repos/{repository}/actions/caches?key={key}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          INPUT_REPOSITORY: ${{ github.repository }}
+          INPUT_KEY: ${{ steps.restore-ccache-cache.outputs.cache-primary-key }}
+
+      - name: Save ccache cache
+        if: inputs.use_ccache_cache == true && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
+          steps.restore-ccache-cache-s3.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v6
+        with:
+          path: openwrt/.ccache
+          key: ${{ steps.restore-ccache-cache.outputs.cache-primary-key }}
+
+      - name: Archive ccache
+        if: inputs.use_ccache_cache == true  && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
+          inputs.upload_ccache_cache == true
+        shell: su buildbot -c "sh -e {0}"
+        working-directory: openwrt
+        run: tar --exclude='.ccache/tmp' -cf ${{ needs.setup_build.outputs.ccache_name }}.tar .ccache
+
+      - name: Upload ccache cache
+        if: inputs.use_ccache_cache == true && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
+          inputs.upload_ccache_cache == true
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ inputs.target }}-${{ inputs.subtarget }}${{ inputs.testing == true && '-testing' || '' }}-ccache-cache
+          path: openwrt/${{ needs.setup_build.outputs.ccache_name }}.tar
+          retention-days: 1
+
+      - name: Find external toolchain name
+        id: get-toolchain-name
+        if: inputs.upload_external_toolchain == true
+        working-directory: openwrt
+        run: |
+          TOOLCHAIN_NAME=$(ls bin/targets/${{inputs.target }}/${{ inputs.subtarget }} | grep toolchain)
+          echo "toolchain-name=$TOOLCHAIN_NAME" >> $GITHUB_OUTPUT
+
+      - name: Upload prebuilt toolchain
+        if: inputs.upload_external_toolchain == true
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ inputs.target }}-${{ inputs.subtarget }}-external-toolchain
+          path: openwrt/bin/targets/${{ inputs.target }}/${{ inputs.subtarget }}/${{ steps.get-toolchain-name.outputs.toolchain-name }}
+          retention-days: 1

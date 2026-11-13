@@ -1,0 +1,48 @@
+diff --git a/utils/fish/Makefile b/utils/fish/Makefile
+--- a/utils/fish/Makefile
++++ b/utils/fish/Makefile
+@@ -30,7 +30,7 @@
+ # For pcre2-sys
+ export CC=$(TARGET_CC)
+ export RUSTFLAGS+=-C target-feature=-crt-static
+-export CARGO_TARGET_$(shell echo $(RUSTC_TARGET_ARCH) | sed -e 'y/abcdefghijklmnopqrstuvwxyz-/ABCDEFGHIJKLMNOPQRSTUVWXYZ_/')_LINKER:=$(TARGET_CC)
++export CARGO_TARGET_$(shell echo $(RUSTC_TARGET_ARCH) | sed -e 'y/abcdefghijklmnopqrstuvwxyz-/ABCDEFGHIJKLMNOPQRSTUVWXYZ_/')_LINKER:=$(TARGET_CC_NOCACHE)
+ 
+ define Package/fish
+   SECTION:=utils
+diff --git a/devel/gcc/Makefile b/devel/gcc/Makefile
+--- a/devel/gcc/Makefile
++++ b/devel/gcc/Makefile
+@@ -188,9 +188,9 @@
+ 
+ define Build/Compile
+ 	export SHELL="$(BASH)"; $(MAKE_VARS) $(MAKE) $(PKG_JOBS) -C $(PKG_BUILD_DIR) \
+-			DESTDIR="$(PKG_INSTALL_DIR)" $(MAKE_ARGS) all
++			DESTDIR="$(PKG_INSTALL_DIR)" $(MAKE_ARGS) CC_FOR_TARGET="$(TARGET_CC_NOCACHE)" all
+ 	export SHELL="$(BASH)"; $(MAKE_VARS) $(MAKE) $(PKG_JOBS) -C $(PKG_BUILD_DIR) \
+-			DESTDIR="$(PKG_INSTALL_DIR)" $(MAKE_ARGS) install
++			DESTDIR="$(PKG_INSTALL_DIR)" $(MAKE_ARGS) CC_FOR_TARGET="$(TARGET_CC_NOCACHE)" install
+ endef
+ 
+ ENVCFLAGS:="$(TARGET_OPTIMIZATION) $(EXTRA_OPTIMIZATION)
+diff --git a/utils/runc/Makefile b/utils/runc/Makefile
+--- a/utils/runc/Makefile
++++ b/utils/runc/Makefile
+@@ -66,4 +66,6 @@
+ 	$(INSTALL_BIN) $(GO_PKG_BUILD_DIR)/src/$(GO_PKG)/runc $(1)/usr/sbin/
+ endef
+ 
++ifneq ($(filter $(ARCH),$(subst ||, ,$(patsubst @(%),%,$(ARCH_DEPENDS)))),)
+ $(eval $(call BuildPackage,runc))
++endif
+diff --git a/net/xray-core/Makefile b/net/xray-core/Makefile
+--- a/net/xray-core/Makefile
++++ b/net/xray-core/Makefile
+@@ -85,5 +85,7 @@
+ 	$(INSTALL_DATA) $(CURDIR)/files/vpoint_vmess_freedom.json $(1)/etc/xray/
+ endef
+ 
++ifneq ($(filter $(ARCH),$(subst ||, ,$(patsubst @(%),%,$(GO_ARCH_DEPENDS)))),)
+ $(eval $(call BuildPackage,xray-core))
+ $(eval $(call BuildPackage,xray-example))
++endif

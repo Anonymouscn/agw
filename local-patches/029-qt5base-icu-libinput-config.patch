@@ -1,0 +1,74 @@
+diff --git a/frameworks/qt5/qt5base/Config.in b/frameworks/qt5/qt5base/Config.in
+index aa89719..15663c7 100644
+--- a/frameworks/qt5/qt5base/Config.in
++++ b/frameworks/qt5/qt5base/Config.in
+@@ -18,7 +18,6 @@ config BUILD_qt5base-gui_DRM
+ choice
+     prompt "Which OpenGL variant to use"
+     default BUILD_qt5base-gui_OPENGL_NONE
+-    depends on PACKAGE_qt5base-gui
+ 
+ config BUILD_qt5base-gui_OPENGL_OPENGLES2
+     bool "es2"
+diff --git a/frameworks/qt5/qt5base/Makefile b/frameworks/qt5/qt5base/Makefile
+index 9b1295c..fbc1945 100644
+--- a/frameworks/qt5/qt5base/Makefile
++++ b/frameworks/qt5/qt5base/Makefile
+@@ -32,9 +32,6 @@ include ../qmake.mk
+ # makes use of the host build.
+ HOST_BUILD_DEPENDS:=qt5base
+ 
+-# hard disable udev support for now
+-CONFIG_PACKAGE_qt5base-input-autodiscovery:=
+-
+ PKG_CONFIG_DEPENDS:= \
+ 	CONFIG_PACKAGE_qt5base-plugin-imageformats-jpeg \
+ 	CONFIG_PACKAGE_qt5base-network \
+@@ -167,7 +164,7 @@ endef
+ define Package/qt5base-plugin-input-libinput
+   $(call Package/qt5base/Default)
+   TITLE+=libinput (plugin)
+-  DEPENDS+=+qt5base-core +qt5base-gui +libinput
++  DEPENDS+=+qt5base-core +qt5base-gui +libinput +libudev
+ endef
+ 
+ define Package/qt5base-plugin-input-evdevkeyboard
+@@ -225,17 +222,19 @@ endef
+ define Package/qt5base-plugin-platforms-linuxfb
+   $(call Package/qt5base/Default)
+   TITLE+=platform linuxfb (plugin)
+-  DEPENDS+=+qt5base-core +qt5base-gui +libfreetype +PACKAGE_qt5base-input-autodiscovery:libudev +PACKAGE_qt5base-plugin-input-libinput:libinput
++  DEPENDS+=+qt5base-core +qt5base-gui +libfreetype +BUILD_qt5base-gui_DRM:libdrm +PACKAGE_qt5base-input-autodiscovery:libudev +PACKAGE_qt5base-plugin-input-libinput:libinput
+ endef
+ 
+ define Package/qt5base-plugin-platforms-eglfs
+   $(call Package/qt5base/Default)
++  DEPENDS+=@BUILD_qt5base-gui_OPENGL_OPENGLES2
+   TITLE+=platform eglfs (plugin)
+   DEPENDS+=+qt5base-core +qt5base-gui +libfreetype +fontconfig +libmesa # +qt5base-eglfs-device-integration
+ endef
+ 
+ define Package/qt5base-plugin-platforms-minimalegl
+   $(call Package/qt5base/Default)
++  DEPENDS+=@BUILD_qt5base-gui_OPENGL_OPENGLES2
+   TITLE+=platform minimalegl (plugin)
+   DEPENDS+=+qt5base-core +qt5base-gui # +libfreetype +fontconfig
+ endef
+@@ -355,7 +354,7 @@ define Build/Configure
+ 			--glib=no \
+ 			--eventfd=no \
+ 			--inotify=$(if $(CONFIG_BUILD_qt5base-core_INOTIFY),yes,no) \
+-			--iconv=$(if $(CONFIG_BUILD_NLS),$(if $(CONFIG_LIBC_USE_GLIBC)$(CONFIG_LIBC_USE_MUSL),posix)$(if $(CONFIG_LIBC_USE_UCLIBC),gnu),no) \
++			--iconv=$(if $(CONFIG_PACKAGE_icu),no,$(if $(CONFIG_BUILD_NLS),$(if $(CONFIG_LIBC_USE_GLIBC)$(CONFIG_LIBC_USE_MUSL),posix)$(if $(CONFIG_LIBC_USE_UCLIBC),gnu),no)) \
+ 			--icu=$(if $(CONFIG_PACKAGE_icu),yes,no) \
+ 			--pcre=system \
+ 			--zlib=system \
+@@ -382,7 +381,7 @@ define Build/Configure
+ 			--kms=$(if $(CONFIG_BUILD_qt5base-gui_DRM),yes,no) \
+ 			--linuxfb=$(if $(CONFIG_PACKAGE_qt5base-plugin-platforms-linuxfb),yes,no) \
+ 			--xcb=no \
+-			--libudev=$(if $(CONFIG_PACKAGE_qt5base-input-autodiscovery),yes,no) \
++			--libudev=$(if $(CONFIG_PACKAGE_qt5base-input-autodiscovery)$(CONFIG_PACKAGE_qt5base-plugin-input-libinput),yes,no) \
+ 			--evdev=yes \
+ 			--libinput=$(if $(CONFIG_PACKAGE_qt5base-plugin-input-libinput),yes,no) \
+ 			--mtdev=no \

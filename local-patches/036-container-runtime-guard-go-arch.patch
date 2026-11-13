@@ -1,0 +1,20 @@
+diff --git a/utils/containerd/Makefile b/utils/containerd/Makefile
+--- a/utils/containerd/Makefile
++++ b/utils/containerd/Makefile
+@@ -67,4 +67,6 @@
+ 	$(INSTALL_BIN) $(PKG_INSTALL_DIR)/bin/{ctr,containerd,containerd-stress,containerd-shim-runc-v2} $(1)/usr/bin/
+ endef
+ 
++ifneq ($(filter $(ARCH),$(subst ||, ,$(patsubst @(%),%,$(ARCH_DEPENDS)))),)
+ $(eval $(call BuildPackage,containerd))
++endif
+diff --git a/utils/dockerd/Makefile b/utils/dockerd/Makefile
+--- a/utils/dockerd/Makefile
++++ b/utils/dockerd/Makefile
+@@ -161,4 +161,6 @@
+ }
+ endef
+ 
++ifneq ($(filter $(ARCH),$(subst ||, ,$(patsubst @(%),%,$(ARCH_DEPENDS)))),)
+ $(eval $(call BuildPackage,dockerd))
++endif

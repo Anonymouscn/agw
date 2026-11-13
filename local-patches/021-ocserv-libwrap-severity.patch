@@ -1,0 +1,42 @@
+diff --git a/net/ocserv/patches/010-define-libwrap-severity.patch b/net/ocserv/patches/010-define-libwrap-severity.patch
+new file mode 100644
+index 0000000..3fe4e99
+--- /dev/null
++++ b/net/ocserv/patches/010-define-libwrap-severity.patch
+@@ -0,0 +1,36 @@
++From: AGW regression fixes <noreply@local>
++Subject: [PATCH] ocserv: define libwrap severity variables for both binaries
++
++The libwrap header only declares the severity variables; each linked
++executable must provide storage for them.
++
++--- a/src/main.c
+++++ b/src/main.c
++@@ -43,6 +43,12 @@
++ #include "setproctitle.h"
++ #ifdef HAVE_LIBWRAP
++ #include <tcpd.h>
+++#endif
+++
+++/* libwrap expects each executable to define these severity values. */
+++#ifdef HAVE_LIBWRAP
+++int allow_severity;
+++int deny_severity;
++ #endif
++ #include <ev.h>
++ #include <locale.h>
++--- a/src/worker.c
+++++ b/src/worker.c
++@@ -27,6 +27,12 @@
++ #include <tcpd.h>
++ #endif
++ 
+++/* libwrap expects each executable to define these severity values. */
+++#ifdef HAVE_LIBWRAP
+++int allow_severity;
+++int deny_severity;
+++#endif
+++
++ #ifdef HAVE_LIBSYSTEMD
++ #include <systemd/sd-daemon.h>
++ #endif

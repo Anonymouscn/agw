@@ -1296,6 +1296,7 @@ define KernelPackage/rxrpc
   AUTOLOAD:=$(call AutoLoad,30,rxrpc)
   DEPENDS:= \
 	+kmod-crypto-fcrypt \
+	+kmod-crypto-des \
 	+kmod-crypto-hmac \
 	+kmod-crypto-manager \
 	+kmod-crypto-md5 \

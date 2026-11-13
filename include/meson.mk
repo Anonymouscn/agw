@@ -22,6 +22,14 @@
 # MESON_HOST_ARGS+=-Dfoo -Dbar=baz
 # MESON_HOST_VARS+=FOO=bar
 
+# Dependencies such as GLib export -lintl/-liconv in pkg-config metadata.
+# Search their isolated staging directories without changing consumer headers.
+PKG_CONFIG_DEPENDS += CONFIG_BUILD_NLS
+ifeq ($(CONFIG_BUILD_NLS),y)
+TARGET_LDFLAGS += -L$(STAGING_DIR)/usr/lib/libiconv-full/lib -Wl,-rpath-link=$(STAGING_DIR)/usr/lib/libiconv-full/lib
+TARGET_LDFLAGS += -L$(STAGING_DIR)/usr/lib/libintl-full/lib -Wl,-rpath-link=$(STAGING_DIR)/usr/lib/libintl-full/lib
+endif
+
 MESON_DIR:=$(STAGING_DIR_HOST)/lib/meson
 
 MESON_HOST_BUILD_DIR:=$(HOST_BUILD_DIR)/openwrt-build

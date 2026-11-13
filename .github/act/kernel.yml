@@ -1,0 +1,21 @@
+name: Local Kernel CI
+on:
+  workflow_dispatch:
+jobs:
+  kernel:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Prepare isolated container workspace
+        run: |
+          test "$(uname -s)" = Linux
+          test "$(uname -m)" = x86_64
+          test -d /external-toolchain
+          test -d /prebuilt_tools
+          chown -R buildbot:buildbot "$GITHUB_WORKSPACE" /results
+          chown buildbot:buildbot /cache/host-tools /cache/ccache
+      - name: Build all kernel modules in container
+        run: |
+          su buildbot -c "cd /workspace/openwrt && bash .github/act/kernel-build.sh"

@@ -1,0 +1,16 @@
+diff --git a/libs/wpewebkit/patches/160-cmake-quote-empty-framework.patch b/libs/wpewebkit/patches/160-cmake-quote-empty-framework.patch
+new file mode 100644
+--- /dev/null
++++ b/libs/wpewebkit/patches/160-cmake-quote-empty-framework.patch
+@@ -0,0 +1,11 @@
++--- a/Source/cmake/WebKitMacros.cmake
+++++ b/Source/cmake/WebKitMacros.cmake
++@@ -308,7 +308,7 @@
++         get_property(_linked_into GLOBAL PROPERTY ${framework}_LINKED_INTO)
++ 
++         # See if the target is linking a framework that the specified framework is already linked into
++-        if ((NOT _linked_into) OR (${framework} STREQUAL ${_linked_into}) OR (NOT ${_linked_into} IN_LIST ${_target}_FRAMEWORKS))
+++        if ((NOT _linked_into) OR ("${framework}" STREQUAL "${_linked_into}") OR (NOT "${_linked_into}" IN_LIST ${_target}_FRAMEWORKS))
++             list(APPEND ${_target}_PRIVATE_LIBRARIES WebKit::${framework})
++ 
++             # The WebKit:: alias targets do not propagate OBJECT libraries so the

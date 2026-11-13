@@ -124,7 +124,7 @@ sub download_cmd {
 	my $filename = shift;
 
 	if ($download_tool eq "curl") {
-		return (qw(curl -f --connect-timeout 5 --retry 3 --location),
+		return (qw(curl -f --connect-timeout 5 --retry 3 --retry-all-errors --speed-time 30 --speed-limit 1024 --location),
 			$check_certificate ? () : '--insecure',
 			shellwords($ENV{CURL_OPTIONS} || ''),
 			$url);
@@ -216,6 +216,22 @@ sub download
 			@cmd = download_cmd("$mirror/$download_filename", $download_filename, @additional_mirrors);
 		}
 		print STDERR "+ ".join(" ",@cmd)."\n";
+		if ($download_tool eq "curl") {
+			# Curl rewinds a regular output file before retrying a partial transfer.
+			# Retrying into a pipe would concatenate the failed and complete bodies.
+			push @cmd, '--output', "$target/$filename.dl";
+			system { $cmd[0] } @cmd;
+			if ($? != 0 || ! -f "$target/$filename.dl") {
+				print STDERR "Download failed.\n";
+				cleanup();
+				return;
+			}
+			if ($hash_cmd && system("cat '$target/$filename.dl' | $hash_cmd > '$target/$filename.hash'")) {
+				print STDERR "Failed to generate hash for $filename\n";
+				cleanup();
+				return;
+			}
+		} else {
 		open(FETCH_FD, '-|', @cmd) or die "Cannot launch aria2c, curl or wget.\n";
 		$hash_cmd and do {
 			open MD5SUM, "| $hash_cmd > '$target/$filename.hash'" or die "Cannot launch $hash_cmd.\n";
@@ -234,6 +250,7 @@ sub download
 			print STDERR "Download failed.\n";
 			cleanup();
 			return;
+		}
 		}
 	}
 
@@ -315,7 +332,7 @@ if (-f "$target/$filename") {
 		cleanup();
 		exit 0 if $sum eq $file_hash;
 
-		die "Hash of the local file $filename does not match (file: $sum, requested: $file_hash) - deleting download.\n";
+		warn "Hash of the local file $filename does not match (file: $sum, requested: $file_hash) - deleting download.\n";
 		unlink "$target/$filename";
 	};
 }

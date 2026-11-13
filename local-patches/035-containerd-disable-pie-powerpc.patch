@@ -1,0 +1,16 @@
+diff --git a/utils/containerd/patches/010-disable-pie-on-powerpc.patch b/utils/containerd/patches/010-disable-pie-on-powerpc.patch
+new file mode 100644
+--- /dev/null
++++ b/utils/containerd/patches/010-disable-pie-on-powerpc.patch
+@@ -0,0 +1,11 @@
++--- a/Makefile.linux
+++++ b/Makefile.linux
++@@ -20,7 +20,7 @@
++ 
++ # check GOOS for cross compile builds
++ ifeq ($(GOOS),linux)
++-  ifneq ($(GOARCH),$(filter $(GOARCH),mips mipsle mips64 mips64le ppc64))
+++  ifneq ($(GOARCH),$(filter $(GOARCH),mips mipsle mips64 mips64le powerpc ppc64))
++     ifeq ($(STATIC),)
++ 	    GO_GCFLAGS += -buildmode=pie
++     endif
