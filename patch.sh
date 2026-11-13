@@ -571,6 +571,12 @@ apply_git_patch \
     "035-containerd-disable-pie-powerpc.patch" \
     "containerd: disable PIE on 32-bit PowerPC" || true
 
+# 036. Exclude container runtimes on Go-unsupported target architectures.
+apply_git_patch \
+    "feeds/packages" \
+    "036-container-runtime-guard-go-arch.patch" \
+    "container runtimes: honor Go architecture support" || true
+
 #
 # Summary
 #
